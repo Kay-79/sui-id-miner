@@ -2,11 +2,9 @@
 
 use crate::cpu_miner::CpuMiner;
 use crate::target::TargetChecker;
-use crate::types::MiningProgress;
 
 use anyhow::{Context, Result};
 use base64::{Engine as _, engine::general_purpose};
-use crossbeam_channel::bounded;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -435,37 +433,40 @@ fn run_package_mining(
         threads,
     });
 
-    let (progress_tx, progress_rx) = bounded::<MiningProgress>(100);
+    let total_attempts = Arc::new(std::sync::atomic::AtomicU64::new(0));
 
     let out_tx_progress = out_tx.clone();
     let cancel_progress = cancel.clone();
+    let total_attempts_progress = total_attempts.clone();
+
     let progress_thread = thread::spawn(move || {
         let mut last_attempts = 0u64;
         let mut last_time = std::time::Instant::now();
 
         while !cancel_progress.load(Ordering::Relaxed) {
-            if let Ok(update) = progress_rx.recv_timeout(Duration::from_millis(500)) {
-                let now = std::time::Instant::now();
-                let elapsed = now.duration_since(last_time).as_secs_f64();
-                let hashrate = if elapsed > 0.0 {
-                    (update.attempts - last_attempts) as f64 / elapsed
-                } else {
-                    0.0
-                };
+            thread::sleep(Duration::from_millis(500));
 
-                let _ = out_tx_progress.blocking_send(ServerMessage::Progress {
-                    attempts: update.attempts,
-                    hashrate,
-                });
+            let current = total_attempts_progress.load(Ordering::Relaxed);
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(last_time).as_secs_f64();
+            let hashrate = if elapsed > 0.0 {
+                (current - last_attempts) as f64 / elapsed
+            } else {
+                0.0
+            };
 
-                last_attempts = update.attempts;
-                last_time = now;
-            }
+            let _ = out_tx_progress.blocking_send(ServerMessage::Progress {
+                attempts: current,
+                hashrate,
+            });
+
+            last_attempts = current;
+            last_time = now;
         }
     });
 
     let miner = CpuMiner::new(tx_template, salt_offset, target, threads);
-    let result = miner.mine(progress_tx, cancel.clone());
+    let result = miner.mine(total_attempts.clone(), cancel.clone());
 
     cancel.store(true, Ordering::SeqCst);
     let _ = progress_thread.join();

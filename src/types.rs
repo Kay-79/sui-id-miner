@@ -10,10 +10,3 @@ pub struct MiningResult {
     pub gas_budget_used: u64,
     pub attempts: u64,
 }
-
-/// Progress update from mining threads
-#[derive(Debug, Clone)]
-pub struct MiningProgress {
-    pub attempts: u64,
-    pub found: Option<MiningResult>,
-}

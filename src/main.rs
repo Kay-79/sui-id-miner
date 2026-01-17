@@ -7,7 +7,6 @@ mod types;
 use anyhow::{Context, Result};
 use base64::{Engine as _, engine::general_purpose};
 use clap::Parser;
-use crossbeam_channel::bounded;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -20,13 +19,12 @@ use sui_sdk::SuiClientBuilder;
 use sui_types::{
     base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionData},
+    transaction::TransactionData,
 };
 
 use crate::cpu_miner::CpuMiner;
 use crate::progress::ProgressDisplay;
 use crate::target::TargetChecker;
-use crate::types::MiningProgress;
 
 /// Sui Package ID Miner - Find vanity package addresses
 #[derive(Parser, Debug)]
@@ -174,8 +172,8 @@ async fn main() -> Result<()> {
     println!("🧵 Threads: {}", threads);
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    // Progress channel
-    let (progress_tx, progress_rx) = bounded::<MiningProgress>(100);
+    // Progress counter
+    let total_attempts = Arc::new(std::sync::atomic::AtomicU64::new(0));
     let cancel = Arc::new(AtomicBool::new(false));
 
     // Setup Ctrl+C handler
@@ -190,11 +188,12 @@ async fn main() -> Result<()> {
     let progress = ProgressDisplay::new(target.estimated_attempts(), prefix);
     let progress_handle = {
         let cancel = cancel.clone();
+        let total_attempts = total_attempts.clone();
         thread::spawn(move || {
             while !cancel.load(Ordering::Relaxed) {
-                if let Ok(update) = progress_rx.recv_timeout(Duration::from_millis(100)) {
-                    progress.update(update.attempts);
-                }
+                thread::sleep(Duration::from_millis(100));
+                let attempts = total_attempts.load(Ordering::Relaxed);
+                progress.update(attempts);
             }
         })
     };
@@ -202,7 +201,7 @@ async fn main() -> Result<()> {
     // Start mining
     println!("💻 Starting CPU mining with {} threads...\n", threads);
     let miner = CpuMiner::new(tx_template.clone(), salt_offset, target.clone(), threads);
-    let result = miner.mine(progress_tx, cancel.clone());
+    let result = miner.mine(total_attempts.clone(), cancel.clone());
 
     // Stop progress thread
     cancel.store(true, Ordering::SeqCst);

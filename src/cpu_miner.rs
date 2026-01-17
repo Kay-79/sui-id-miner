@@ -1,11 +1,10 @@
 use crate::target::TargetChecker;
-use crate::types::{MiningProgress, MiningResult};
-use crossbeam_channel::Sender;
-use fastcrypto::hash::{Blake2b256, HashFunction, Sha3_256};
+use crate::types::MiningResult;
+
 use rayon::prelude::*;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use sui_types::{base_types::ObjectID, digests::TransactionDigest};
+use std::sync::atomic::{AtomicBool, Ordering};
+use sui_types::base_types::ObjectID;
 
 /// CPU-based miner using Rayon for parallel processing
 pub struct CpuMiner {
@@ -40,7 +39,7 @@ impl CpuMiner {
     /// Start mining, returns when a match is found or cancelled
     pub fn mine(
         &self,
-        progress_tx: Sender<MiningProgress>,
+        total_attempts: Arc<std::sync::atomic::AtomicU64>,
         cancel: Arc<AtomicBool>,
     ) -> Option<MiningResult> {
         // Configure thread pool
@@ -65,7 +64,7 @@ impl CpuMiner {
                     }
 
                     let n = nonce + i;
-                    
+
                     // Vary gas_budget by adding nonce to base value
                     // Keep it within reasonable range (base + 0 to base + 2^32)
                     let varied_gas_budget = self.base_gas_budget.wrapping_add(n);
@@ -78,30 +77,11 @@ impl CpuMiner {
 
                     // Use TransactionData::digest() for correct hash calculation
                     // This is slower but guarantees on-chain match
-                    if let Ok(tx_data) = bcs::from_bytes::<sui_types::transaction::TransactionData>(&tx_bytes) {
-                       let tx_digest = tx_data.digest();
-                       let tx_digest_bytes: [u8; 32] = tx_digest.into_inner();
-                       
-                       // Compute Package ID from this digest and index (which is likely 1 for most cases, or loop if parallel publishing)
-                       // Assuming index 1 for published package (first object created usually UpgradeCap, then Package?)
-                       // Actually, miner logic assumes index 0 or similar.
-                       // Let's use the helper we have but with correct digest.
-                       // Wait, helper 'compute_package_id_bytes' needs [u8;32] digest.
-                       
-                       // Check all created object IDs (indices) just in case? 
-                       // Usually package is index 1 of created objects?
-                       // Previous code assumed a specific index?
-                       // Previous code used `compute_package_id_bytes(tx_digest_bytes, i as u64)`.
-                       // Where i is loop 0..created_count.
-                       
-                       // To be safe and fast, we just check the digest that creates the package.
-                       // But the package ID derivation depends on the index in the effects.
-                       
-                       // Let's keep the target checking logic, but pass the CORRECT digest.
-                       // The original code passed `tx_digest_bytes` to `self.target.matches(&package_id)`.
-                       // But `package_id` is derived from `tx_digest` and `index`.
-                       
-                       // Let's iterate indices like before
+                    if let Ok(tx_data) =
+                        bcs::from_bytes::<sui_types::transaction::TransactionData>(&tx_bytes)
+                    {
+                        let tx_digest = tx_data.digest();
+
                         // Check ONLY Index 0 for Package ID
                         // We verified that Publish always produces Package ID at Index 0.
                         // Scanning other indices produces false positives (valid digest, but wrong object ID matching prefix).
@@ -112,17 +92,11 @@ impl CpuMiner {
                                 package_id,
                                 tx_digest,
                                 tx_bytes: tx_bytes.clone(),
-                                nonce: n, 
+                                nonce: n,
                                 gas_budget_used: varied_gas_budget,
-                                attempts: n, 
+                                attempts: n,
                             };
-                            
-                            if progress_tx.send(MiningProgress {
-                                attempts: n, 
-                                found: Some(result.clone()),
-                            }).is_err() {
-                                return None;
-                            }
+
                             return Some(result);
                         }
                     }
@@ -138,22 +112,7 @@ impl CpuMiner {
 
             // Update progress
             nonce += batch_size;
-            let _ = progress_tx.send(MiningProgress {
-                attempts: nonce,
-                found: None,
-            });
+            total_attempts.fetch_add(batch_size, Ordering::Relaxed);
         }
     }
 }
-
-#[inline(always)]
-fn blake2b_256_with_intent(tx_bytes: &[u8]) -> [u8; 32] {
-    // Intent prefix for TransactionData signing
-    const INTENT_PREFIX: [u8; 3] = [0, 0, 0];
-    
-    let mut hasher = Blake2b256::default();
-    hasher.update(&INTENT_PREFIX);
-    hasher.update(tx_bytes);
-    hasher.finalize().into()
-}
-
