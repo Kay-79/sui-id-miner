@@ -1,17 +1,18 @@
 mod cpu_miner;
 mod progress;
+mod server;
 mod target;
 mod types;
 
 use anyhow::{Context, Result};
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use clap::Parser;
 use crossbeam_channel::bounded;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -71,11 +72,28 @@ struct Args {
     /// Run benchmark for 10 seconds
     #[arg(long)]
     benchmark: bool,
+
+    /// Export transaction template for Web Miner
+    #[arg(long)]
+    export_template: bool,
+
+    /// Run as WebSocket server for Web App
+    #[arg(long)]
+    server: bool,
+
+    /// Port for WebSocket server (default: 9876)
+    #[arg(long, default_value = "9876")]
+    port: u16,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+
+    // Check if running in server mode
+    if args.server {
+        return server::run_server(args.port).await;
+    }
 
     // Parse and validate prefix
     let prefix = args.prefix.trim_start_matches("0x");
@@ -140,6 +158,16 @@ async fn main() -> Result<()> {
         tx_template.len(),
         salt_offset
     );
+
+    if args.export_template {
+        println!("\n📤 Export for Web Miner:");
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("TX_TEMPLATE_HEX={}", hex::encode(&tx_template));
+        println!("NONCE_OFFSET={}", salt_offset);
+        println!("BASE_GAS_BUDGET={}", args.gas_budget);
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        return Ok(());
+    }
 
     // Determine thread count
     let threads = args.threads.unwrap_or_else(num_cpus::get);

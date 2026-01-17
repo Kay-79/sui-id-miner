@@ -23,6 +23,12 @@ num_cpus = "1.16"
 crossbeam-channel = "0.5"
 parking_lot = "0.12"
 ctrlc = "3.4"
+tokio-tungstenite = "0.26"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+futures-util = "0.3"
+bs58 = "0.5"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
 
 # Sui Dependencies
 sui-types = { git = "https://github.com/MystenLabs/sui", package = "sui-types", branch = "mainnet" }
