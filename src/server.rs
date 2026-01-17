@@ -93,22 +93,31 @@ pub enum ServerMessage {
     Error { message: String },
 }
 
-pub async fn run_server(port: u16) -> Result<()> {
+pub async fn run_server(port: u16, default_modules: Option<Vec<Vec<u8>>>) -> Result<()> {
     let addr = format!("127.0.0.1:{}", port);
     let listener = TcpListener::bind(&addr).await?;
 
     println!("🌐 WebSocket Server listening on ws://{}", addr);
+    if default_modules.is_some() {
+        println!("   📦 Loaded default modules from arguments");
+    }
     println!("   Connect from Web App to start mining.");
     println!("   Press Ctrl+C to stop server.\n");
 
+    let default_modules = Arc::new(default_modules);
+
     while let Ok((stream, peer)) = listener.accept().await {
-        tokio::spawn(handle_connection(stream, peer));
+        tokio::spawn(handle_connection(stream, peer, default_modules.clone()));
     }
 
     Ok(())
 }
 
-async fn handle_connection(stream: TcpStream, peer: SocketAddr) {
+async fn handle_connection(
+    stream: TcpStream,
+    peer: SocketAddr,
+    default_modules: Arc<Option<Vec<Vec<u8>>>>,
+) {
     println!("📡 New connection from: {}", peer);
 
     let ws_stream = match accept_async(stream).await {
@@ -161,15 +170,27 @@ async fn handle_connection(stream: TcpStream, peer: SocketAddr) {
                         gas_object_digest,
                         threads,
                     }) => {
-                        let modules: Vec<Vec<u8>> = modules_base64
+                        // Use client modules if provided, otherwise fallback to default
+                        let mut mut_modules = modules_base64
                             .iter()
                             .filter_map(|b64| general_purpose::STANDARD.decode(b64).ok())
-                            .collect();
+                            .collect::<Vec<Vec<u8>>>();
+
+                        if mut_modules.is_empty() {
+                            if let Some(defaults) = default_modules.as_ref() {
+                                println!("   📦 Using loaded default modules");
+                                mut_modules = defaults.clone();
+                            }
+                        }
+
+                        let modules = mut_modules;
 
                         if modules.is_empty() {
                             let _ = out_tx
                                 .send(ServerMessage::Error {
-                                    message: "No valid modules provided".to_string(),
+                                    message:
+                                        "No valid modules provided and no default modules loaded"
+                                            .to_string(),
                                 })
                                 .await;
                             continue;

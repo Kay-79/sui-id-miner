@@ -90,7 +90,19 @@ async fn main() -> Result<()> {
 
     // Check if running in server mode
     if args.server {
-        return server::run_server(args.port).await;
+        // Load modules if path provided (optional for server mode)
+        let modules = if let Some(path) = &args.module {
+            match load_module_bytes(&Some(path.clone())) {
+                Ok(m) => Some(m),
+                Err(e) => {
+                    eprintln!("⚠️  Failed to load default modules: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        return server::run_server(args.port, modules).await;
     }
 
     // Parse and validate prefix
