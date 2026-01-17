@@ -1,0 +1,39 @@
+[package]
+name = "sui-id-miner"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["cpu"]
+cpu = []
+
+[dependencies]
+anyhow = "1.0"
+rand = "0.8"
+base64 = "0.21"
+rayon = "1.7"
+bcs = "0.1"
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4.4", features = ["derive"] }
+indicatif = "0.17"
+console = "0.15"
+hex = "0.4"
+regex = "1.10"
+num_cpus = "1.16"
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+ctrlc = "3.4"
+
+# Sui Dependencies
+sui-types = { git = "https://github.com/MystenLabs/sui", package = "sui-types", branch = "mainnet" }
+sui-sdk = { git = "https://github.com/MystenLabs/sui", package = "sui-sdk", branch = "mainnet" }
+fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", package = "fastcrypto" }
+shared-crypto = { git = "https://github.com/MystenLabs/sui", package = "shared-crypto", branch = "mainnet" }
+
+[[bin]]
+name = "sui-id-miner"
+path = "src/main.rs"
+
+[lib]
+name = "sui_id_miner"
+path = "src/lib.rs"
