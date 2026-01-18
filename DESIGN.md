@@ -229,16 +229,16 @@ sequenceDiagram
 
 ### Mining Difficulty Estimates
 
-| Prefix Length | Possibilities | Average Attempts | Estimated Time (100K/s) |
+| Prefix Length | Possibilities | Average Attempts | Estimated Time (1M/s) |
 |---------------|---------------|------------------|-------------------------|
-| 1 char | 16¹ | 8 | <1 second |
-| 2 chars | 16² | 128 | <1 second |
-| 3 chars | 16³ | 2,048 | <1 second |
-| 4 chars | 16⁴ | 32,768 | <1 second |
-| 5 chars | 16⁵ | 524,288 | ~5 seconds |
-| 6 chars | 16⁶ | 8,388,608 | ~84 seconds |
-| 7 chars | 16⁷ | 134,217,728 | ~22 minutes |
-| 8 chars | 16⁸ | 2,147,483,648 | ~6 hours |
+| 1 char | 16¹ | 8 | ~0 second |
+| 2 chars | 16² | 128 | ~0 second |
+| 3 chars | 16³ | 2,048 | ~0 second |
+| 4 chars | 16⁴ | 32,768 | ~0 second |
+| 5 chars | 16⁵ | 524,288 | ~0.5 second |
+| 6 chars | 16⁶ | 8,388,608 | ~8.3 second |
+| 7 chars | 16⁷ | 134,217,728 | ~2 minutes |
+| 8 chars | 16⁸ | 2,147,483,648 | ~35 minutes |
 
 ---
 
