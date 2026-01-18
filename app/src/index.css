@@ -221,3 +221,36 @@ body {
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
 }
+
+/* GitHub Badge */
+.github-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: white;
+  border: var(--border-width) solid var(--dark);
+  box-shadow: var(--shadow-sm);
+  color: var(--dark);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+}
+
+.github-badge:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-md);
+  background: var(--dark);
+  color: white;
+}
+
+.github-badge .star-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  background: var(--warning);
+  border: 2px solid var(--dark);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
