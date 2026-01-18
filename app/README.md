@@ -1,6 +1,8 @@
 # Sui ID Miner - Web UI
 
-A Neo-Brutalism styled web interface for mining Sui wallet addresses and package IDs.
+> **Part of [Sui Package ID Miner](../README.md)** - High-performance vanity Package ID miner for Sui blockchain
+
+A Neo-Brutalism styled web interface for mining Sui Package IDs.
 
 ## 📖 Quick Start
 

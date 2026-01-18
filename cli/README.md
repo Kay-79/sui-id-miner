@@ -1,4 +1,6 @@
-# Sui Package ID Miner
+# Sui Package ID Miner (CLI)
+
+> **Part of [Sui Package ID Miner](../README.md)** - High-performance vanity Package ID miner for Sui blockchain
 
 A high-performance CPU miner for generating custom (vanity) Package IDs when publishing Move packages on the Sui blockchain.
 
