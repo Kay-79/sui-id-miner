@@ -1,6 +1,7 @@
 //! WebSocket Server for Web Mining Interface
 
 use crate::cpu_miner::CpuMiner;
+use crate::module_order::sort_modules_by_dependency;
 use crate::target::TargetChecker;
 
 use anyhow::{Context, Result};
@@ -196,6 +197,27 @@ async fn handle_connection(
                             continue;
                         }
 
+                        // Sort modules by dependency order (critical for multi-module packages!)
+                        let sorted_modules = if modules.len() > 1 {
+                            println!(
+                                "   🔄 Sorting {} modules by dependency order...",
+                                modules.len()
+                            );
+                            match sort_modules_by_dependency(modules) {
+                                Ok(sorted) => sorted,
+                                Err(e) => {
+                                    let _ = out_tx
+                                        .send(ServerMessage::Error {
+                                            message: format!("Failed to sort modules: {}", e),
+                                        })
+                                        .await;
+                                    continue;
+                                }
+                            }
+                        } else {
+                            modules
+                        };
+
                         cancel.store(false, Ordering::SeqCst);
                         let cancel_clone = cancel.clone();
                         let out_tx_clone = out_tx.clone();
@@ -204,7 +226,7 @@ async fn handle_connection(
                         tokio::task::spawn_blocking(move || {
                             let result = run_package_mining(
                                 prefix,
-                                modules,
+                                sorted_modules,
                                 sender,
                                 gas_budget,
                                 gas_price,

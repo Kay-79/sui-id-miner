@@ -12,17 +12,16 @@ interface ConfigCardProps {
     difficulty: number
     estimatedAttempts: number
     isValidPrefix: boolean
-    // New props for WebSocket mode
+    // WebSocket mode props
     modulesBase64: string[]
     setModulesBase64: (modules: string[]) => void
     sender: string
     setSender: (s: string) => void
     gasObjectId: string
     setGasObjectId: (id: string) => void
-    gasObjectVersion: string
-    setGasObjectVersion: (v: string) => void
-    gasObjectDigest: string
-    setGasObjectDigest: (d: string) => void
+    // Network selection from parent (shared state)
+    network: 'mainnet' | 'testnet' | 'devnet'
+    setNetwork: (n: 'mainnet' | 'testnet' | 'devnet') => void
 }
 
 function formatNumber(n: number): string {
@@ -48,15 +47,12 @@ export default function ConfigCard({
     setSender,
     gasObjectId,
     setGasObjectId,
-    gasObjectVersion,
-    setGasObjectVersion,
-    gasObjectDigest,
-    setGasObjectDigest
+    network,
+    setNetwork,
 }: ConfigCardProps) {
     
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [statusMsg, setStatusMsg] = useState('')
-    const [network, setNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('testnet')
     const [isFetching, setIsFetching] = useState(false)
 
     // Read .mv files and convert to Base64
@@ -66,34 +62,68 @@ export default function ConfigCard({
         setStatusMsg("Reading modules...")
         
         try {
-            const modules: string[] = []
+            // Collect .mv files with their names for sorting
+            // Exclude test modules and dependency modules
+            const fileList: { name: string; file: File }[] = []
             
             for (let i = 0; i < e.target.files.length; i++) {
                 const file = e.target.files[i]
-                if (file.name.endsWith('.mv')) {
-                    const buffer = await file.arrayBuffer()
-                    const bytes = new Uint8Array(buffer)
-                    let binary = ''
-                    for (let j = 0; j < bytes.byteLength; j++) {
-                        binary += String.fromCharCode(bytes[j])
-                    }
-                    modules.push(btoa(binary))
+                const fileName = file.name
+                
+                // Only include .mv files
+                if (!fileName.endsWith('.mv')) continue
+                
+                // Check relative path to filter out dependency modules
+                // webkitRelativePath is like: "bytecode_modules/avatar.mv" or "bytecode_modules/dependencies/Sui/balance.mv"
+                const relativePath = (file as any).webkitRelativePath || ''
+                if (relativePath.includes('/dependencies/') || relativePath.includes('\\dependencies\\')) {
+                    console.log(`Skipping dependency: ${relativePath}`)
+                    continue
                 }
+                
+                // Exclude test modules (files ending with _tests.mv or _test.mv)
+                const baseName = fileName.replace('.mv', '')
+                if (baseName.endsWith('_tests') || baseName.endsWith('_test')) {
+                    console.log(`Skipping test module: ${fileName}`)
+                    continue
+                }
+                
+                fileList.push({ name: fileName, file })
             }
 
-            if (modules.length === 0) {
-                setStatusMsg("❌ No .mv files found!")
+            if (fileList.length === 0) {
+                setStatusMsg("❌ No .mv files found (excluding tests)!")
                 return
             }
 
+            // Sort by filename for consistent ordering (critical for deployment!)
+            // This matches the order used by `sui client publish`
+            fileList.sort((a, b) => a.name.localeCompare(b.name))
+            
+            console.log('Module order:', fileList.map(f => f.name))
+            
+            // Process files in sorted order
+            const modules: string[] = []
+            for (const { file } of fileList) {
+                const buffer = await file.arrayBuffer()
+                const bytes = new Uint8Array(buffer)
+                let binary = ''
+                for (let j = 0; j < bytes.byteLength; j++) {
+                    binary += String.fromCharCode(bytes[j])
+                }
+                modules.push(btoa(binary))
+            }
+
+            const moduleNames = fileList.map(f => f.name.replace('.mv', '')).join(', ')
             setModulesBase64(modules)
-            setStatusMsg(`✅ Loaded ${modules.length} module(s)`)
+            setStatusMsg(`✅ Loaded ${modules.length} module(s): ${moduleNames}`)
 
         } catch (err: any) {
             console.error(err)
             setStatusMsg("❌ Error reading files: " + err.message)
         }
     }
+
 
     // Fetch the coin with highest balance for sender
     const fetchBestGasCoin = async () => {
@@ -136,34 +166,6 @@ export default function ConfigCard({
         }
     }
 
-    const fetchGasDetails = async (showStatus = true) => {
-        if (!gasObjectId || isFetching) return
-        // Validate gasObjectId format (0x + 64 hex chars)
-        if (!/^0x[a-fA-F0-9]{64}$/.test(gasObjectId)) return
-        
-        setIsFetching(true)
-        if (showStatus) setStatusMsg(`⏳ Fetching from ${network.toUpperCase()}...`)
-        try {
-            const client = new SuiClient({ url: getFullnodeUrl(network) })
-            const data = await client.getObject({ id: gasObjectId })
-            
-            if (data.data) {
-                setGasObjectVersion(data.data.version)
-                setGasObjectDigest(data.data.digest)
-                if (showStatus) setStatusMsg("✅ Gas object loaded!")
-            } else if (data.error) {
-                if (showStatus) setStatusMsg("❌ " + data.error.code)
-            } else {
-                if (showStatus) setStatusMsg("❌ Object not found")
-            }
-        } catch (e: any) {
-            console.error(e)
-            if (showStatus) setStatusMsg("❌ " + e.message)
-        } finally {
-            setIsFetching(false)
-        }
-    }
-
     // Auto-fetch best gas coin when sender changes (debounced)
     useEffect(() => {
         if (!sender || !/^0x[a-fA-F0-9]{64}$/.test(sender)) return
@@ -176,23 +178,6 @@ export default function ConfigCard({
 
         return () => clearTimeout(timer)
     }, [sender, network])
-
-    // Auto-fetch gas details when gasObjectId changes (debounced)
-    useEffect(() => {
-        if (!gasObjectId || !/^0x[a-fA-F0-9]{64}$/.test(gasObjectId)) return
-        
-        const timer = setTimeout(() => {
-            fetchGasDetails(true)
-        }, 500)
-
-        return () => clearTimeout(timer)
-    }, [gasObjectId])
-
-    // Auto-fetch when network changes (if gasObjectId is valid)
-    useEffect(() => {
-        if (!gasObjectId || !/^0x[a-fA-F0-9]{64}$/.test(gasObjectId)) return
-        fetchGasDetails(true)
-    }, [network])
 
     return (
         <div className="brutal-card p-6">
@@ -274,58 +259,52 @@ export default function ConfigCard({
                             </div>
                             
                             <div className="grid gap-2">
-                                <div className="flex gap-2">
-                                    <input 
-                                        type="text" 
-                                        value={gasObjectId}
-                                        onChange={(e) => setGasObjectId(e.target.value)}
-                                        className="brutal-input text-xs font-mono py-1 flex-1"
-                                        placeholder="Object ID (0x...)"
-                                    />
-                                    <button 
-                                        onClick={() => fetchGasDetails(true)}
-                                        disabled={isFetching}
-                                        className={`px-3 py-1 text-xs font-bold uppercase active:translate-y-0.5 transition-all border-2 border-black shadow-[2px_2px_0px_rgba(0,0,0,1)] ${isFetching ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
-                                    >
-                                        {isFetching ? '⏳' : 'Fetch'}
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <input 
-                                        type="text" 
-                                        value={gasObjectVersion}
-                                        onChange={(e) => setGasObjectVersion(e.target.value)}
-                                        className="brutal-input text-xs font-mono py-1 col-span-1"
-                                        placeholder="Version"
-                                    />
-                                    <input 
-                                        type="text" 
-                                        value={gasObjectDigest}
-                                        onChange={(e) => setGasObjectDigest(e.target.value)}
-                                        className="brutal-input text-xs font-mono py-1 col-span-2"
-                                        placeholder="Digest (Base58)"
-                                    />
-                                </div>
+                                <input 
+                                    type="text" 
+                                    value={gasObjectId}
+                                    onChange={(e) => setGasObjectId(e.target.value)}
+                                    className="brutal-input text-xs font-mono py-1"
+                                    placeholder="Object ID (0x...) - fetched automatically"
+                                />
+                                <p className="text-[10px] text-gray-500">
+                                    ✨ Version/digest will be auto-verified when mining starts
+                                </p>
                             </div>
                         </div>
 
                         {/* Modules */}
                         <div className="p-3 bg-white border border-green-200 rounded">
                             <h4 className="text-xs font-bold uppercase mb-2">Move Modules</h4>
-                            <div className="flex items-center gap-2">
-                                <label className="brutal-btn cursor-pointer bg-green-600 text-white text-sm py-1 px-3">
-                                    🗃️ Select Package Build
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef}
-                                        onChange={handleFileChange}
-                                        className="hidden"
-                                        accept=".mv"
-                                        multiple
-                                    />
-                                </label>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center gap-2">
+                                    <label className="brutal-btn cursor-pointer bg-green-600 text-white text-sm py-1 px-3">
+                                        📂 Select Bytecode Folder
+                                        <input 
+                                            type="file" 
+                                            ref={fileInputRef}
+                                            onChange={handleFileChange}
+                                            className="hidden"
+                                            /* @ts-expect-error webkitdirectory is non-standard */
+                                            webkitdirectory=""
+                                            directory=""
+                                        />
+                                    </label>
+                                    <span className="text-xs text-gray-500">
+                                        or
+                                    </span>
+                                    <label className="brutal-btn cursor-pointer bg-gray-600 text-white text-sm py-1 px-3">
+                                        🗃️ Select .mv Files
+                                        <input 
+                                            type="file" 
+                                            onChange={handleFileChange}
+                                            className="hidden"
+                                            accept=".mv"
+                                            multiple
+                                        />
+                                    </label>
+                                </div>
                                 <span className="text-xs font-bold text-[var(--primary)]">
-                                    {modulesBase64.length > 0 ? `${modulesBase64.length} module(s)` : ''}
+                                    {modulesBase64.length > 0 ? `${modulesBase64.length} module(s)` : 'Select build/package_name/bytecode_modules/ folder'}
                                 </span>
                             </div>
                             {statusMsg && (

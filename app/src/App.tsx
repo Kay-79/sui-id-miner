@@ -12,6 +12,7 @@ import ResultsList from "./components/ResultsList";
 import { useWebSocketMiner } from "./hooks/useWebSocketMiner";
 import { useToast } from "./hooks/useToast";
 import { ToastContainer } from "./components/Toast";
+import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 
 function App() {
     // Config State
@@ -19,7 +20,7 @@ function App() {
     const [prefix, setPrefix] = useState("");
 
     // Package Mode Specific Config
-    const [baseGasBudget, setBaseGasBudget] = useState(100000000);
+    const [baseGasBudget, setBaseGasBudget] = useState(500000000);
 
     // Package Mode: Module storage + Gas Object
     const [modulesBase64, setModulesBase64] = useState<string[]>([]);
@@ -27,8 +28,8 @@ function App() {
         "0x0000000000000000000000000000000000000000000000000000000000000000"
     );
     const [gasObjectId, setGasObjectId] = useState("");
-    const [gasObjectVersion, setGasObjectVersion] = useState("");
-    const [gasObjectDigest, setGasObjectDigest] = useState("");
+    const [network, setNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('testnet');
+    const [isFetchingGas, setIsFetchingGas] = useState(false);
 
     // WebSocket Miner
     const wsMiner = useWebSocketMiner();
@@ -55,9 +56,7 @@ function App() {
             ? isValidPrefix
             : isValidPrefix &&
               modulesBase64.length > 0 &&
-              gasObjectId &&
-              gasObjectVersion &&
-              gasObjectDigest;
+              gasObjectId;
 
     // Track WebSocket results -> add to foundResults
     // This is a valid pattern: syncing external WebSocket state with React state
@@ -98,7 +97,7 @@ function App() {
     }, [wsMiner.addressResult]);
 
     // Actions
-    const startMining = useCallback(() => {
+    const startMining = useCallback(async () => {
         // Validate and show toast for missing fields
         if (!wsMiner.isConnected) {
             showToast("Please connect to the server first!", "error");
@@ -121,32 +120,50 @@ function App() {
                 return;
             }
             if (!gasObjectId) {
-                showToast("Please enter Gas Object ID or change network!", "error");
+                showToast("Please enter Gas Object ID!", "error");
                 return;
             }
-            if (!gasObjectVersion) {
-                showToast("Gas Object Version is missing!", "error");
-                return;
+
+            // Auto-fetch gas object version/digest right before mining
+            setIsFetchingGas(true);
+            showToast("⏳ Fetching gas object details...", "info");
+            
+            try {
+                const client = new SuiClient({ url: getFullnodeUrl(network) });
+                const data = await client.getObject({ id: gasObjectId });
+                
+                if (!data.data) {
+                    showToast("❌ Gas object not found!", "error");
+                    setIsFetchingGas(false);
+                    return;
+                }
+
+                const gasVersion = data.data.version;
+                const gasDigest = data.data.digest;
+                
+                showToast(`✅ Gas object verified: v${gasVersion}`, "success");
+                
+                // Start mining with fresh gas details
+                wsMiner.startPackageMining({
+                    prefix,
+                    modulesBase64,
+                    sender,
+                    gasBudget: baseGasBudget,
+                    gasPrice: 1000,
+                    gasObjectId,
+                    gasObjectVersion: gasVersion,
+                    gasObjectDigest: gasDigest,
+                });
+            } catch (e: any) {
+                showToast("❌ Failed to fetch gas object: " + e.message, "error");
+            } finally {
+                setIsFetchingGas(false);
             }
-            if (!gasObjectDigest) {
-                showToast("Gas Object Digest is missing!", "error");
-                return;
-            }
+            return;
         }
 
         if (mode === "ADDRESS") {
             wsMiner.startAddressMining({ prefix });
-        } else {
-            wsMiner.startPackageMining({
-                prefix,
-                modulesBase64,
-                sender,
-                gasBudget: baseGasBudget,
-                gasPrice: 1000,
-                gasObjectId,
-                gasObjectVersion,
-                gasObjectDigest,
-            });
         }
     }, [
         isValidPrefix,
@@ -156,8 +173,7 @@ function App() {
         sender,
         baseGasBudget,
         gasObjectId,
-        gasObjectVersion,
-        gasObjectDigest,
+        network,
         wsMiner,
         showToast,
     ]);
@@ -238,10 +254,8 @@ function App() {
                     setSender={setSender}
                     gasObjectId={gasObjectId}
                     setGasObjectId={setGasObjectId}
-                    gasObjectVersion={gasObjectVersion}
-                    setGasObjectVersion={setGasObjectVersion}
-                    gasObjectDigest={gasObjectDigest}
-                    setGasObjectDigest={setGasObjectDigest}
+                    network={network}
+                    setNetwork={setNetwork}
                 />
 
                 <MiningControl

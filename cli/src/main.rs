@@ -1,4 +1,5 @@
 mod cpu_miner;
+mod module_order;
 mod progress;
 mod server;
 mod target;
@@ -23,6 +24,7 @@ use sui_types::{
 };
 
 use crate::cpu_miner::CpuMiner;
+use crate::module_order::sort_modules_by_dependency;
 use crate::progress::ProgressDisplay;
 use crate::target::TargetChecker;
 
@@ -123,11 +125,20 @@ async fn main() -> Result<()> {
     );
 
     // Load module bytes
-    let module_bytes = load_module_bytes(&args.module)?;
+    let raw_modules = load_module_bytes(&args.module)?;
     println!(
-        "📦 Module bytes: {} bytes",
-        module_bytes.iter().map(|m| m.len()).sum::<usize>()
+        "📦 Loaded {} module(s), {} bytes total",
+        raw_modules.len(),
+        raw_modules.iter().map(|m| m.len()).sum::<usize>()
     );
+
+    // Sort modules by dependency order (critical for multi-module packages!)
+    let module_bytes = if raw_modules.len() > 1 {
+        println!("🔄 Sorting modules by dependency order...");
+        sort_modules_by_dependency(raw_modules)?
+    } else {
+        raw_modules
+    };
 
     // Parse sender
     let sender = SuiAddress::from_str(&args.sender).context("Invalid sender address")?;
@@ -254,18 +265,38 @@ async fn main() -> Result<()> {
 fn load_module_bytes(path: &Option<PathBuf>) -> Result<Vec<Vec<u8>>> {
     match path {
         Some(p) if p.is_dir() => {
-            // Load all .mv files from directory
+            // Load all .mv files from directory (excluding test modules)
+            let mut entries: Vec<_> = fs::read_dir(p)?
+                .filter_map(|e| e.ok())
+                .filter(|e| {
+                    let path = e.path();
+                    let is_mv = path.extension().map_or(false, |ext| ext == "mv");
+                    let is_test = path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .map_or(false, |name| {
+                            name.ends_with("_tests") || name.ends_with("_test")
+                        });
+                    is_mv && !is_test
+                })
+                .collect();
+
+            // Sort by filename for consistent ordering (important for deployment!)
+            entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+
             let mut modules = Vec::new();
-            for entry in fs::read_dir(p)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.extension().map_or(false, |e| e == "mv") {
-                    modules.push(fs::read(&path)?);
-                }
+            for entry in entries {
+                modules.push(fs::read(entry.path())?);
             }
+
             if modules.is_empty() {
                 anyhow::bail!("No .mv files found in directory");
             }
+
+            println!(
+                "   📦 Loaded {} module(s) (sorted by filename)",
+                modules.len()
+            );
             Ok(modules)
         }
         Some(p) if p.is_file() => {
