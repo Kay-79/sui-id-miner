@@ -1,0 +1,223 @@
+@import "tailwindcss";
+
+/* Neo-Brutalism Design System */
+:root {
+  /* Colors - Vibrant & Bold */
+  --primary: #ff6b35;
+  --secondary: #f7931e;
+  --accent: #00d4aa;
+  --success: #22c55e;
+  --warning: #eab308;
+  --error: #ef4444;
+  --dark: #1a1a2e;
+  --light: #fef9f3;
+  
+  /* Shadows - Hard, no blur */
+  --shadow-sm: 2px 2px 0px #1a1a2e;
+  --shadow-md: 4px 4px 0px #1a1a2e;
+  --shadow-lg: 6px 6px 0px #1a1a2e;
+  --shadow-xl: 8px 8px 0px #1a1a2e;
+  
+  /* Border */
+  --border-width: 3px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  background-color: var(--light);
+  color: var(--dark);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Neo-Brutal Cards */
+.brutal-card {
+  background: white;
+  border: var(--border-width) solid var(--dark);
+  box-shadow: var(--shadow-md);
+  transition: all 0.15s ease;
+}
+
+.brutal-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Neo-Brutal Buttons */
+.brutal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  font-weight: 700;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: var(--border-width) solid var(--dark);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: all 0.1s ease;
+  background: var(--primary);
+  color: white;
+}
+
+.brutal-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.brutal-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.brutal-btn-secondary {
+  background: white;
+  color: var(--dark);
+}
+
+.brutal-btn-success {
+  background: var(--success);
+}
+
+.brutal-btn-stop {
+  background: var(--error);
+}
+
+/* Neo-Brutal Inputs */
+.brutal-input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  border: var(--border-width) solid var(--dark);
+  box-shadow: var(--shadow-sm);
+  background: white;
+  transition: all 0.15s ease;
+}
+
+.brutal-input:focus {
+  outline: none;
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-md);
+}
+
+.brutal-input::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+/* Stats Display */
+.stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #6b7280;
+}
+
+/* Animated Elements */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: var(--shadow-md), 0 0 20px rgba(255, 107, 53, 0.3);
+  }
+  50% {
+    box-shadow: var(--shadow-md), 0 0 40px rgba(255, 107, 53, 0.6);
+  }
+}
+
+.mining-active {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 2s linear infinite;
+}
+
+/* Typography */
+.heading-xl {
+  font-size: 3rem;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.heading-lg {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+/* Tag/Badge */
+.brutal-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 2px solid var(--dark);
+  background: var(--accent);
+  color: var(--dark);
+}
+
+/* Progress Bar */
+.brutal-progress {
+  height: 1.5rem;
+  background: white;
+  border: var(--border-width) solid var(--dark);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.brutal-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  transition: width 0.3s ease;
+}
+
+/* Log Entry */
+.log-entry {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.875rem;
+  padding: 0.75rem 1rem;
+  background: var(--dark);
+  color: var(--accent);
+  border-left: 4px solid var(--primary);
+  word-break: break-all;
+}
+
+/* Toast Animation */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
