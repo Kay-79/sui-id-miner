@@ -51,10 +51,7 @@ function App() {
     const estimatedAttempts = Math.pow(16, difficulty)
     const isValidPrefix = prefix.length > 0 && /^[0-9a-fA-F]+$/.test(prefix)
 
-    const isConfigValid =
-        mode === 'ADDRESS'
-            ? isValidPrefix
-            : isValidPrefix && modulesBase64.length > 0 && gasObjectId
+    const isConfigValid = isValidPrefix && modulesBase64.length > 0 && gasObjectId
 
     // Track WebSocket results -> add to foundResults
     // This is a valid pattern: syncing external WebSocket state with React state
@@ -75,24 +72,6 @@ function App() {
             }))
         }
     }, [wsMiner.packageResult])
-
-    useEffect(() => {
-        if (wsMiner.addressResult) {
-            const result: FoundResult = {
-                type: 'ADDRESS',
-                address: wsMiner.addressResult.address,
-                private_key: wsMiner.addressResult.privateKey,
-                public_key: wsMiner.addressResult.publicKey,
-                attempts: wsMiner.addressResult.attempts,
-                timestamp: Date.now(),
-            }
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-            setState((prev) => ({
-                ...prev,
-                foundResults: [...prev.foundResults, result],
-            }))
-        }
-    }, [wsMiner.addressResult])
 
     // Actions
     const startMining = useCallback(async () => {
@@ -155,13 +134,6 @@ function App() {
                 showToast('Failed to fetch gas object: ' + e.message, 'error')
             }
             return
-        }
-
-        if (mode === 'ADDRESS') {
-            wsMiner.startAddressMining({
-                prefix,
-                threads: threadCount > 0 ? threadCount : undefined,
-            })
         }
     }, [
         isValidPrefix,
@@ -226,7 +198,6 @@ function App() {
                 />
 
                 <MiningControl
-                    mode={mode}
                     isRunning={wsMiner.isRunning}
                     isConfigValid={!!(isConfigValid && wsMiner.isConnected)}
                     isConnected={wsMiner.isConnected}
@@ -239,13 +210,12 @@ function App() {
                 />
 
                 <ResultsList
-                    mode={mode}
                     results={state.foundResults}
                     clearResults={clearResults}
                     sender={sender}
                 />
 
-                <Footer mode={mode} />
+                <Footer />
             </div>
         </div>
     )

@@ -1,17 +1,12 @@
-export type MiningMode = 'PACKAGE' | 'ADDRESS'
+export type MiningMode = 'PACKAGE'
 
 export interface FoundResult {
     // Common
-    type?: 'ADDRESS' | 'PACKAGE'
+    type?: 'PACKAGE'
     attempts: number
     timestamp: number
 
-    // Address Mode
-    address?: string
-    private_key?: string
-    public_key?: string
-
-    // Package Mode (WebSocket)
+    // Package Mode
     packageId?: string
     txDigest?: string
     txBytesBase64?: string

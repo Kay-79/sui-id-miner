@@ -20,7 +20,6 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 use sui_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress};
 
 use crate::common::{create_tx_template, format_large_number, randomize_gas_budget};
-use fastcrypto::hash::{Blake2b256, HashFunction};
 use rand::Rng;
 use rand::rngs::OsRng;
 
@@ -41,11 +40,6 @@ pub enum ClientMessage {
         threads: Option<usize>,
         #[serde(default)]
         nonce_offset: u64, // Resume from this nonce
-    },
-    #[serde(rename = "start_address_mining")]
-    StartAddressMining {
-        prefix: String,
-        threads: Option<usize>,
     },
     #[serde(rename = "stop_mining")]
     StopMining,
@@ -77,14 +71,6 @@ pub enum ServerMessage {
         tx_bytes_base64: String,
         attempts: u64,
         gas_budget_used: u64,
-    },
-
-    #[serde(rename = "address_found")]
-    AddressFound {
-        address: String,
-        private_key: String,
-        public_key: String,
-        attempts: u64,
     },
 
     #[serde(rename = "stopped")]
@@ -245,16 +231,6 @@ async fn handle_connection(
                             }
                         });
                     }
-                    Ok(ClientMessage::StartAddressMining { prefix, threads }) => {
-                        cancel.store(false, Ordering::SeqCst);
-                        let cancel_clone = cancel.clone();
-                        let out_tx_clone = out_tx.clone();
-                        let thread_count = threads.unwrap_or_else(num_cpus::get);
-
-                        tokio::task::spawn_blocking(move || {
-                            run_address_mining(prefix, thread_count, cancel_clone, out_tx_clone);
-                        });
-                    }
                     Ok(ClientMessage::StopMining) => {
                         cancel.store(true, Ordering::SeqCst);
                     }
@@ -279,159 +255,6 @@ async fn handle_connection(
 }
 
 // =============================================================================
-// ADDRESS MINING
-// =============================================================================
-
-fn run_address_mining(
-    prefix: String,
-    threads: usize,
-    cancel: Arc<AtomicBool>,
-    out_tx: mpsc::Sender<ServerMessage>,
-) {
-    use ed25519_dalek::SigningKey;
-
-    let prefix_lower = prefix.to_lowercase();
-    let prefix_bytes = match hex::decode(if prefix_lower.len() % 2 == 1 {
-        format!("{}0", prefix_lower)
-    } else {
-        prefix_lower.clone()
-    }) {
-        Ok(b) => b,
-        Err(_) => {
-            let _ = out_tx.blocking_send(ServerMessage::Error {
-                message: "Invalid hex prefix".to_string(),
-            });
-            return;
-        }
-    };
-    let nibble_count = prefix_lower.len();
-    let difficulty = nibble_count;
-    let estimated_attempts = 16u64.pow(difficulty as u32);
-
-    let _ = out_tx.blocking_send(ServerMessage::MiningStarted {
-        mode: "ADDRESS".to_string(),
-        prefix: prefix_lower.clone(),
-        difficulty,
-        estimated_attempts,
-        threads,
-    });
-
-    let found = Arc::new(AtomicBool::new(false));
-    let total_attempts = Arc::new(std::sync::atomic::AtomicU64::new(0));
-
-    // Progress reporter
-    let out_tx_progress = out_tx.clone();
-    let cancel_progress = cancel.clone();
-    let total_attempts_progress = total_attempts.clone();
-    let progress_thread = thread::spawn(move || {
-        let mut last = 0u64;
-        let mut last_time = std::time::Instant::now();
-        while !cancel_progress.load(Ordering::Relaxed) {
-            thread::sleep(Duration::from_millis(500));
-            let current = total_attempts_progress.load(Ordering::Relaxed);
-            let now = std::time::Instant::now();
-            let elapsed = now.duration_since(last_time).as_secs_f64();
-            let hashrate = if elapsed > 0.0 {
-                (current - last) as f64 / elapsed
-            } else {
-                0.0
-            };
-            let _ = out_tx_progress.blocking_send(ServerMessage::Progress {
-                attempts: current,
-                hashrate,
-            });
-            last = current;
-            last_time = now;
-        }
-    });
-
-    // Mining threads
-    let handles: Vec<_> = (0..threads)
-        .map(|_| {
-            let prefix_bytes = prefix_bytes.clone();
-            let cancel = cancel.clone();
-            let found = found.clone();
-            let total_attempts = total_attempts.clone();
-            let out_tx = out_tx.clone();
-            let nibble_count = nibble_count;
-
-            thread::spawn(move || {
-                let mut rng = OsRng;
-                let mut local_attempts = 0u64;
-
-                while !cancel.load(Ordering::Relaxed) && !found.load(Ordering::Relaxed) {
-                    let signing_key = SigningKey::generate(&mut rng);
-                    let public_key = signing_key.verifying_key();
-                    let public_key_bytes: [u8; 32] = public_key.to_bytes();
-
-                    // Derive address: Blake2b256(0x00 || pubkey)
-                    let mut hasher = Blake2b256::default();
-                    hasher.update(&[0x00]);
-                    hasher.update(&public_key_bytes);
-                    let address: [u8; 32] = hasher.finalize().into();
-
-                    local_attempts += 1;
-
-                    if matches_prefix(&address, &prefix_bytes, nibble_count) {
-                        if found
-                            .compare_exchange(false, true, Ordering::SeqCst, Ordering::Relaxed)
-                            .is_ok()
-                        {
-                            let _ = out_tx.blocking_send(ServerMessage::AddressFound {
-                                address: format!("0x{}", hex::encode(address)),
-                                private_key: hex::encode(signing_key.to_bytes()),
-                                public_key: hex::encode(public_key_bytes),
-                                attempts: total_attempts.load(Ordering::Relaxed) + local_attempts,
-                            });
-                        }
-                        return;
-                    }
-
-                    if local_attempts % 10000 == 0 {
-                        total_attempts.fetch_add(10000, Ordering::Relaxed);
-                    }
-                }
-            })
-        })
-        .collect();
-
-    for h in handles {
-        let _ = h.join();
-    }
-
-    cancel.store(true, Ordering::SeqCst);
-    let _ = progress_thread.join();
-
-    if !found.load(Ordering::Relaxed) {
-        let _ = out_tx.blocking_send(ServerMessage::Stopped {
-            attempts: total_attempts.load(Ordering::Relaxed),
-            last_nonce: 0, // Address mining doesn't use nonce
-        });
-    }
-}
-
-fn matches_prefix(address: &[u8; 32], prefix_bytes: &[u8], nibble_count: usize) -> bool {
-    let full_bytes = nibble_count / 2;
-    let has_half = nibble_count % 2 == 1;
-
-    for i in 0..full_bytes {
-        if address[i] != prefix_bytes[i] {
-            return false;
-        }
-    }
-
-    if has_half {
-        let expected_nibble = prefix_bytes[full_bytes] >> 4;
-        let actual_nibble = address[full_bytes] >> 4;
-        if expected_nibble != actual_nibble {
-            return false;
-        }
-    }
-
-    true
-}
-
-// =============================================================================
 // PACKAGE MINING
 // =============================================================================
 
@@ -450,12 +273,12 @@ fn run_package_mining(
     out_tx: mpsc::Sender<ServerMessage>,
 ) -> Result<()> {
     // If start_nonce is 0 (fresh start), randomize it to avoid re-mining the same range.
-    // Range: [100,000, u64::MAX - 1,000,000,000]
+    // Range: [100,000, u64::MAX - 8_446_744_073_709_551_615]
     // 100,000 is safe buffer above current mainnet epoch.
     // u64::MAX buffer avoids immediate overflow during crunching.
     if start_nonce == 0 {
         let mut rng = OsRng;
-        start_nonce = rng.gen_range(100_000..(u64::MAX - 1_000_000_000));
+        start_nonce = rng.gen_range(100_000..(u64::MAX - 8_446_744_073_709_551_615));
         println!(
             "Mining starting with randomized expiration epoch: {}",
             format_large_number(start_nonce)

@@ -190,7 +190,7 @@ export default function ConfigCard({
         <div className="brutal-card p-6">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="heading-lg flex items-center gap-2">
-                    {mode === 'ADDRESS' ? '💳 Address Config' : '📦 Package Config'}
+                     Package Config
                 </h2>
             </div>
 

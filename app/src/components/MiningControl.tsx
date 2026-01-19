@@ -1,7 +1,4 @@
-import type { MiningMode } from '../types'
-
 interface MiningControlProps {
-    mode: MiningMode
     isRunning: boolean
     isConfigValid: boolean
     isConnected: boolean
@@ -21,7 +18,6 @@ function formatNumber(n: number): string {
 }
 
 export default function MiningControl({
-    mode,
     isRunning,
     isConfigValid: _isConfigValid,
     isConnected,
@@ -38,12 +34,8 @@ export default function MiningControl({
                 <div className="flex items-center gap-4">
                     {isRunning ? (
                         <>
-                            <div
-                                className={`w-8 h-8 border-4 border-t-transparent rounded-full spin ${mode === 'ADDRESS' ? 'border-[var(--primary)]' : 'border-[var(--accent)]'}`}
-                            ></div>
-                            <span className="text-xl font-bold">
-                                Mining {mode === 'ADDRESS' ? 'Wallet' : 'Package'}...
-                            </span>
+                            <div className="w-8 h-8 border-4 border-t-transparent rounded-full spin border-[var(--accent)]"></div>
+                            <span className="text-xl font-bold">Mining Package...</span>
                         </>
                     ) : (
                         <span className="text-xl font-bold">
@@ -67,10 +59,7 @@ export default function MiningControl({
                     <button
                         onClick={startMining}
                         className="brutal-btn"
-                        style={{
-                            backgroundColor:
-                                mode === 'ADDRESS' ? 'var(--primary)' : 'var(--accent)',
-                        }}
+                        style={{ backgroundColor: 'var(--accent)' }}
                     >
                         ⚡ Start Mining
                     </button>
@@ -94,12 +83,7 @@ export default function MiningControl({
                         <div className="text-xs font-bold uppercase text-gray-500">
                             Probable Progress
                         </div>
-                        <div
-                            className="text-xl font-black"
-                            style={{
-                                color: mode === 'ADDRESS' ? 'var(--primary)' : 'var(--accent)',
-                            }}
-                        >
+                        <div className="text-xl font-black" style={{ color: 'var(--accent)' }}>
                             {progress >= 100 ? '99.99% 😅' : `${progress.toFixed(1)}%`}
                         </div>
                     </div>
