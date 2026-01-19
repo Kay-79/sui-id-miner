@@ -66,50 +66,50 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
     const [error, setError] = useState<string | null>(null)
     const [lastNonce, setLastNonce] = useState(0)
     const [lastEpoch, setLastEpoch] = useState('') // Epoch = gas digest (changes with new version)
-    
+
     const wsRef = useRef<WebSocket | null>(null)
-    
+
     // Reset nonce for new mining session
     const resetNonce = useCallback(() => {
         setLastNonce(0)
         setLastEpoch('')
     }, [])
-    
+
     const connect = useCallback((port: number = 9876) => {
         if (wsRef.current) {
             wsRef.current.close()
         }
-        
+
         setError(null)
         const ws = new WebSocket(`ws://localhost:${port}`)
-        
+
         ws.onopen = () => {
             console.log('[WS] Connected to sui-id-miner server')
             setIsConnected(true)
             setError(null)
         }
-        
+
         ws.onclose = () => {
             console.log('[WS] Disconnected from server')
             setIsConnected(false)
             setIsRunning(false)
         }
-        
+
         ws.onerror = () => {
             console.error('[WS] Connection error')
             setError('Cannot connect to local server. Is sui-id-miner --server running?')
             setIsConnected(false)
         }
-        
+
         ws.onmessage = (event) => {
             try {
                 const msg = JSON.parse(event.data)
-                
+
                 switch (msg.type) {
                     case 'connected':
                         console.log('[WS] Server version:', msg.version)
                         break
-                        
+
                     case 'mining_started':
                         setIsRunning(true)
                         setPackageResult(null)
@@ -117,14 +117,14 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
                         setProgress({ attempts: 0, hashrate: 0 })
                         console.log('[WS] Mining started:', msg.mode, msg)
                         break
-                        
+
                     case 'progress':
                         setProgress({
                             attempts: msg.attempts,
                             hashrate: msg.hashrate,
                         })
                         break
-                        
+
                     case 'package_found':
                         setPackageResult({
                             packageId: msg.package_id,
@@ -135,7 +135,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
                         })
                         setIsRunning(false)
                         break
-                        
+
                     case 'address_found':
                         setAddressResult({
                             address: msg.address,
@@ -145,7 +145,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
                         })
                         setIsRunning(false)
                         break
-                        
+
                     case 'stopped':
                         // Save last_nonce for resume
                         if (msg.last_nonce !== undefined) {
@@ -153,7 +153,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
                         }
                         setIsRunning(false)
                         break
-                        
+
                     case 'error':
                         setError(msg.message)
                         setIsRunning(false)
@@ -163,85 +163,90 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
                 console.error('[WS] Failed to parse message:', e)
             }
         }
-        
+
         wsRef.current = ws
     }, [])
-    
+
     const disconnect = useCallback(() => {
         if (wsRef.current) {
             wsRef.current.close()
             wsRef.current = null
         }
     }, [])
-    
-    const startPackageMining = useCallback((config: PackageMiningConfig) => {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-            setError('Not connected to server')
-            return
-        }
-        
-        // Check if epoch (gas digest) changed - if so, reset nonce
-        const currentEpoch = config.gasObjectDigest
-        let nonceToUse = config.nonceOffset || 0
-        
-        if (currentEpoch !== lastEpoch) {
-            // New epoch (gas object changed) - start from 0
-            console.log(`[Mining] New epoch detected: ${currentEpoch.slice(0, 8)}... (was: ${lastEpoch.slice(0, 8) || 'none'})`)
-            nonceToUse = 0
-            setLastNonce(0)
-        } else if (lastNonce > 0) {
-            // Same epoch - resume from last nonce
-            console.log(`[Mining] Resuming from nonce: ${lastNonce}`)
-            nonceToUse = lastNonce
-        }
-        
-        // Update current epoch
-        setLastEpoch(currentEpoch)
-        
-        const message = {
-            type: 'start_package_mining',
-            prefix: config.prefix,
-            modules_base64: config.modulesBase64,
-            sender: config.sender,
-            gas_budget: config.gasBudget,
-            gas_price: config.gasPrice,
-            gas_object_id: config.gasObjectId,
-            gas_object_version: parseInt(config.gasObjectVersion) || 0,
-            gas_object_digest: config.gasObjectDigest,
-            threads: config.threads,
-            nonce_offset: nonceToUse,
-        }
-        
-        setPackageResult(null)
-        setAddressResult(null)
-        setError(null)
-        wsRef.current.send(JSON.stringify(message))
-    }, [lastEpoch, lastNonce])
-    
+
+    const startPackageMining = useCallback(
+        (config: PackageMiningConfig) => {
+            if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+                setError('Not connected to server')
+                return
+            }
+
+            // Check if epoch (gas digest) changed - if so, reset nonce
+            const currentEpoch = config.gasObjectDigest
+            let nonceToUse = config.nonceOffset || 0
+
+            if (currentEpoch !== lastEpoch) {
+                // New epoch (gas object changed) - start from 0
+                console.log(
+                    `[Mining] New epoch detected: ${currentEpoch.slice(0, 8)}... (was: ${lastEpoch.slice(0, 8) || 'none'})`
+                )
+                nonceToUse = 0
+                setLastNonce(0)
+            } else if (lastNonce > 0) {
+                // Same epoch - resume from last nonce
+                console.log(`[Mining] Resuming from nonce: ${lastNonce}`)
+                nonceToUse = lastNonce
+            }
+
+            // Update current epoch
+            setLastEpoch(currentEpoch)
+
+            const message = {
+                type: 'start_package_mining',
+                prefix: config.prefix,
+                modules_base64: config.modulesBase64,
+                sender: config.sender,
+                gas_budget: config.gasBudget,
+                gas_price: config.gasPrice,
+                gas_object_id: config.gasObjectId,
+                gas_object_version: parseInt(config.gasObjectVersion) || 0,
+                gas_object_digest: config.gasObjectDigest,
+                threads: config.threads,
+                nonce_offset: nonceToUse,
+            }
+
+            setPackageResult(null)
+            setAddressResult(null)
+            setError(null)
+            wsRef.current.send(JSON.stringify(message))
+        },
+        [lastEpoch, lastNonce]
+    )
+
     const startAddressMining = useCallback((config: AddressMiningConfig) => {
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
             setError('Not connected to server')
             return
         }
-        
+
         const message = {
             type: 'start_address_mining',
             prefix: config.prefix,
             threads: config.threads,
         }
-        
+
         setPackageResult(null)
         setAddressResult(null)
         setError(null)
         wsRef.current.send(JSON.stringify(message))
     }, [])
-    
+
     const stopMining = useCallback(() => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ type: 'stop_mining' }))
         }
     }, [])
-    
+
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -250,7 +255,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
             }
         }
     }, [])
-    
+
     return {
         isConnected,
         isRunning,

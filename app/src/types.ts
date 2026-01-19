@@ -5,7 +5,7 @@ export interface FoundResult {
     type?: 'ADDRESS' | 'PACKAGE'
     attempts: number
     timestamp: number
-    
+
     // Address Mode
     address?: string
     private_key?: string
@@ -15,7 +15,7 @@ export interface FoundResult {
     packageId?: string
     txDigest?: string
     txBytesBase64?: string
-    
+
     // Package Mode (Legacy WASM)
     package_id?: string
     tx_digest?: string

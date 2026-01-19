@@ -1,41 +1,41 @@
-import { useState, useCallback, useEffect } from "react";
-import "./App.css";
-import "./index.css";
+import { useState, useCallback, useEffect } from 'react'
+import './App.css'
+import './index.css'
 
-import type { MiningMode, MiningState, FoundResult } from "./types";
-import Header from "./components/Header";
-import Footer from "./components/Footer";
+import type { MiningMode, MiningState, FoundResult } from './types'
+import Header from './components/Header'
+import Footer from './components/Footer'
 // import ModeSwitcher from "./components/ModeSwitcher";
-import ConfigCard from "./components/ConfigCard";
-import MiningControl from "./components/MiningControl";
-import ResultsList from "./components/ResultsList";
-import { useWebSocketMiner } from "./hooks/useWebSocketMiner";
-import { useToast } from "./hooks/useToast";
-import { ToastContainer } from "./components/Toast";
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
+import ConfigCard from './components/ConfigCard'
+import MiningControl from './components/MiningControl'
+import ResultsList from './components/ResultsList'
+import { useWebSocketMiner } from './hooks/useWebSocketMiner'
+import { useToast } from './hooks/useToast'
+import { ToastContainer } from './components/Toast'
+import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
 
 function App() {
     // Config State
-    const [mode, _setMode] = useState<MiningMode>("PACKAGE");
-    const [prefix, setPrefix] = useState("");
+    const [mode, _setMode] = useState<MiningMode>('PACKAGE')
+    const [prefix, setPrefix] = useState('')
 
     // Package Mode Specific Config
-    const [baseGasBudget, setBaseGasBudget] = useState(100000000);
+    const [baseGasBudget, setBaseGasBudget] = useState(100000000)
 
     // Package Mode: Module storage + Gas Object
-    const [modulesBase64, setModulesBase64] = useState<string[]>([]);
+    const [modulesBase64, setModulesBase64] = useState<string[]>([])
     const [sender, setSender] = useState(
-        "0x0000000000000000000000000000000000000000000000000000000000000000"
-    );
-    const [gasObjectId, setGasObjectId] = useState("");
-    const [network, setNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('testnet');
-    const [threadCount, setThreadCount] = useState(0); // 0 = auto (use all cores)
+        '0x0000000000000000000000000000000000000000000000000000000000000000'
+    )
+    const [gasObjectId, setGasObjectId] = useState('')
+    const [network, setNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('testnet')
+    const [threadCount, setThreadCount] = useState(0) // 0 = auto (use all cores)
 
     // WebSocket Miner
-    const wsMiner = useWebSocketMiner();
+    const wsMiner = useWebSocketMiner()
 
     // Toast
-    const { toasts, showToast, removeToast } = useToast();
+    const { toasts, showToast, removeToast } = useToast()
 
     // Results State
     const [state, setState] = useState<MiningState>({
@@ -44,103 +44,101 @@ function App() {
         hashrate: 0,
         startTime: null,
         foundResults: [],
-    });
+    })
 
     // Computed
-    const difficulty = prefix.length;
-    const estimatedAttempts = Math.pow(16, difficulty);
-    const isValidPrefix = prefix.length > 0 && /^[0-9a-fA-F]+$/.test(prefix);
+    const difficulty = prefix.length
+    const estimatedAttempts = Math.pow(16, difficulty)
+    const isValidPrefix = prefix.length > 0 && /^[0-9a-fA-F]+$/.test(prefix)
 
     const isConfigValid =
-        mode === "ADDRESS"
+        mode === 'ADDRESS'
             ? isValidPrefix
-            : isValidPrefix &&
-              modulesBase64.length > 0 &&
-              gasObjectId;
+            : isValidPrefix && modulesBase64.length > 0 && gasObjectId
 
     // Track WebSocket results -> add to foundResults
     // This is a valid pattern: syncing external WebSocket state with React state
     useEffect(() => {
         if (wsMiner.packageResult) {
             const result: FoundResult = {
-                type: "PACKAGE",
+                type: 'PACKAGE',
                 packageId: wsMiner.packageResult.packageId,
                 txDigest: wsMiner.packageResult.txDigest,
                 txBytesBase64: wsMiner.packageResult.txBytesBase64,
                 attempts: wsMiner.packageResult.attempts,
                 timestamp: Date.now(),
-            };
+            }
             // eslint-disable-next-line react-hooks/exhaustive-deps
             setState((prev) => ({
                 ...prev,
                 foundResults: [...prev.foundResults, result],
-            }));
+            }))
         }
-    }, [wsMiner.packageResult]);
+    }, [wsMiner.packageResult])
 
     useEffect(() => {
         if (wsMiner.addressResult) {
             const result: FoundResult = {
-                type: "ADDRESS",
+                type: 'ADDRESS',
                 address: wsMiner.addressResult.address,
                 private_key: wsMiner.addressResult.privateKey,
                 public_key: wsMiner.addressResult.publicKey,
                 attempts: wsMiner.addressResult.attempts,
                 timestamp: Date.now(),
-            };
+            }
             // eslint-disable-next-line react-hooks/exhaustive-deps
             setState((prev) => ({
                 ...prev,
                 foundResults: [...prev.foundResults, result],
-            }));
+            }))
         }
-    }, [wsMiner.addressResult]);
+    }, [wsMiner.addressResult])
 
     // Actions
     const startMining = useCallback(async () => {
         // Validate and show toast for missing fields
         if (!wsMiner.isConnected) {
-            showToast("Please connect to the server first!", "error");
-            return;
+            showToast('Please connect to the server first!', 'error')
+            return
         }
 
         if (!isValidPrefix) {
-            showToast("Please enter a valid hex prefix!", "error");
-            return;
+            showToast('Please enter a valid hex prefix!', 'error')
+            return
         }
 
-        if (mode === "PACKAGE") {
+        if (mode === 'PACKAGE') {
             // Check if sender is zero address
             if (/^0x0+$/.test(sender)) {
-                showToast("Please set Sender Address!", "error");
-                return;
+                showToast('Please set Sender Address!', 'error')
+                return
             }
             if (modulesBase64.length === 0) {
-                showToast("Please upload .mv module files!", "error");
-                return;
+                showToast('Please upload .mv module files!', 'error')
+                return
             }
             if (!gasObjectId) {
-                showToast("Please enter Gas Object ID!", "error");
-                return;
+                showToast('Please enter Gas Object ID!', 'error')
+                return
             }
 
             // Auto-fetch gas object version/digest right before mining
-            showToast("Fetching gas object details...", "info");
-            
+            showToast('Fetching gas object details...', 'info')
+
             try {
-                const client = new SuiClient({ url: getFullnodeUrl(network) });
-                const data = await client.getObject({ id: gasObjectId });
-                
+                const client = new SuiClient({ url: getFullnodeUrl(network) })
+                const data = await client.getObject({ id: gasObjectId })
+
                 if (!data.data) {
-                    showToast("Gas object not found!", "error");
-                    return;
+                    showToast('Gas object not found!', 'error')
+                    return
                 }
 
-                const gasVersion = data.data.version;
-                const gasDigest = data.data.digest;
-                
-                showToast(`Gas object verified: v${gasVersion}`, "success");
-                
+                const gasVersion = data.data.version
+                const gasDigest = data.data.digest
+
+                showToast(`Gas object verified: v${gasVersion}`, 'success')
+
                 // Start mining - hook auto-tracks epoch (gas digest) and resumes nonce
                 wsMiner.startPackageMining({
                     prefix,
@@ -152,15 +150,18 @@ function App() {
                     gasObjectVersion: gasVersion,
                     gasObjectDigest: gasDigest,
                     threads: threadCount > 0 ? threadCount : undefined,
-                });
+                })
             } catch (e: any) {
-                showToast("Failed to fetch gas object: " + e.message, "error");
+                showToast('Failed to fetch gas object: ' + e.message, 'error')
             }
-            return;
+            return
         }
 
-        if (mode === "ADDRESS") {
-            wsMiner.startAddressMining({ prefix, threads: threadCount > 0 ? threadCount : undefined });
+        if (mode === 'ADDRESS') {
+            wsMiner.startAddressMining({
+                prefix,
+                threads: threadCount > 0 ? threadCount : undefined,
+            })
         }
     }, [
         isValidPrefix,
@@ -173,20 +174,20 @@ function App() {
         network,
         wsMiner,
         showToast,
-    ]);
+    ])
 
     const stopMining = useCallback(() => {
-        wsMiner.stopMining();
-    }, [wsMiner]);
+        wsMiner.stopMining()
+    }, [wsMiner])
 
     const clearResults = useCallback(() => {
-        setState((prev) => ({ ...prev, foundResults: [] }));
-    }, []);
+        setState((prev) => ({ ...prev, foundResults: [] }))
+    }, [])
 
     // Compute progress
-    const attempts = wsMiner.progress?.attempts || 0;
-    const hashrate = wsMiner.progress?.hashrate || 0;
-    const progress = Math.min((attempts / estimatedAttempts) * 100, 100);
+    const attempts = wsMiner.progress?.attempts || 0
+    const hashrate = wsMiner.progress?.hashrate || 0
+    const progress = Math.min((attempts / estimatedAttempts) * 100, 100)
 
     return (
         <div className="min-h-screen p-4 md:p-8 bg-[var(--light)]">
@@ -247,7 +248,7 @@ function App() {
                 <Footer mode={mode} />
             </div>
         </div>
-    );
+    )
 }
 
-export default App;
+export default App

@@ -13,16 +13,16 @@ export function useToast() {
 
     const showToast = (message: string, type: Toast['type'] = 'error') => {
         const id = ++toastId
-        setToasts(prev => [...prev, { id, message, type }])
-        
+        setToasts((prev) => [...prev, { id, message, type }])
+
         // Auto-remove after 3 seconds
         setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id))
+            setToasts((prev) => prev.filter((t) => t.id !== id))
         }, 3000)
     }
 
     const removeToast = (id: number) => {
-        setToasts(prev => prev.filter(t => t.id !== id))
+        setToasts((prev) => prev.filter((t) => t.id !== id))
     }
 
     return { toasts, showToast, removeToast }

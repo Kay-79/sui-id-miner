@@ -30,7 +30,7 @@ export default function MiningControl({
     stopMining,
     hashrate,
     attempts,
-    progress
+    progress,
 }: MiningControlProps) {
     return (
         <div className={`brutal-card p-6 ${isRunning ? 'mining-active' : ''}`}>
@@ -38,7 +38,9 @@ export default function MiningControl({
                 <div className="flex items-center gap-4">
                     {isRunning ? (
                         <>
-                            <div className={`w-8 h-8 border-4 border-t-transparent rounded-full spin ${mode === 'ADDRESS' ? 'border-[var(--primary)]' : 'border-[var(--accent)]'}`}></div>
+                            <div
+                                className={`w-8 h-8 border-4 border-t-transparent rounded-full spin ${mode === 'ADDRESS' ? 'border-[var(--primary)]' : 'border-[var(--accent)]'}`}
+                            ></div>
                             <span className="text-xl font-bold">
                                 Mining {mode === 'ADDRESS' ? 'Wallet' : 'Package'}...
                             </span>
@@ -49,23 +51,26 @@ export default function MiningControl({
                         </span>
                     )}
                 </div>
-                
+
                 {isRunning ? (
                     <button onClick={stopMining} className="brutal-btn brutal-btn-stop">
                         ⏹️ Stop Mining
                     </button>
                 ) : !isConnected ? (
-                    <button 
+                    <button
                         onClick={onConnect}
                         className="brutal-btn bg-[var(--primary)] text-white"
                     >
                         🔗 Connect local server
                     </button>
                 ) : (
-                    <button 
+                    <button
                         onClick={startMining}
                         className="brutal-btn"
-                        style={{ backgroundColor: mode === 'ADDRESS' ? 'var(--primary)' : 'var(--accent)' }}
+                        style={{
+                            backgroundColor:
+                                mode === 'ADDRESS' ? 'var(--primary)' : 'var(--accent)',
+                        }}
                     >
                         ⚡ Start Mining
                     </button>
@@ -86,8 +91,15 @@ export default function MiningControl({
                         <div className="text-xl font-black">{formatNumber(attempts)}</div>
                     </div>
                     <div>
-                        <div className="text-xs font-bold uppercase text-gray-500">Probable Progress</div>
-                        <div className="text-xl font-black" style={{ color: mode === 'ADDRESS' ? 'var(--primary)' : 'var(--accent)' }}>
+                        <div className="text-xs font-bold uppercase text-gray-500">
+                            Probable Progress
+                        </div>
+                        <div
+                            className="text-xl font-black"
+                            style={{
+                                color: mode === 'ADDRESS' ? 'var(--primary)' : 'var(--accent)',
+                            }}
+                        >
                             {progress >= 100 ? '99.99% 😅' : `${progress.toFixed(1)}%`}
                         </div>
                     </div>

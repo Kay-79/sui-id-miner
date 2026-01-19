@@ -9,7 +9,7 @@ interface ModeSwitcherProps {
 export default function ModeSwitcher({ mode, isRunning, setMode }: ModeSwitcherProps) {
     return (
         <div className="flex border-b-4 border-black bg-white">
-            <button 
+            <button
                 onClick={() => !isRunning && setMode('ADDRESS')}
                 className={`flex-1 py-4 font-bold text-lg uppercase tracking-wide transition-colors
                     ${mode === 'ADDRESS' ? 'bg-[var(--primary)] text-white' : 'hover:bg-gray-100'}
@@ -19,7 +19,7 @@ export default function ModeSwitcher({ mode, isRunning, setMode }: ModeSwitcherP
             >
                 💳 Wallet Address
             </button>
-            <button 
+            <button
                 onClick={() => !isRunning && setMode('PACKAGE')}
                 className={`flex-1 py-4 font-bold text-lg uppercase tracking-wide transition-colors
                     ${mode === 'PACKAGE' ? 'bg-[var(--accent)] text-white' : 'hover:bg-gray-100'}
