@@ -22,6 +22,9 @@ interface ConfigCardProps {
     // Network selection from parent (shared state)
     network: 'mainnet' | 'testnet' | 'devnet'
     setNetwork: (n: 'mainnet' | 'testnet' | 'devnet') => void
+    // Thread count
+    threadCount: number
+    setThreadCount: (n: number) => void
 }
 
 function formatNumber(n: number): string {
@@ -49,6 +52,8 @@ export default function ConfigCard({
     setGasObjectId,
     network,
     setNetwork,
+    threadCount,
+    setThreadCount,
 }: ConfigCardProps) {
     
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -241,6 +246,26 @@ export default function ConfigCard({
                             />
                         </div>
 
+                        {/* Thread Count */}
+                        <div>
+                            <label className="block text-xs font-bold uppercase mb-1">CPU Threads</label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={64}
+                                    value={threadCount}
+                                    onChange={(e) => setThreadCount(Math.max(0, parseInt(e.target.value) || 0))}
+                                    className="brutal-input font-mono text-sm py-1 w-20"
+                                    disabled={isRunning}
+                                    placeholder="0"
+                                />
+                                <span className="text-xs text-gray-500">
+                                    {threadCount === 0 ? '0 = Auto (All Cores)' : `${threadCount} thread${threadCount > 1 ? 's' : ''}`}
+                                </span>
+                            </div>
+                        </div>
+
                         {/* Gas Object */}
                         <div className="p-3 bg-white border border-blue-200 rounded">
                             <div className="flex justify-between items-center mb-2">
@@ -304,7 +329,7 @@ export default function ConfigCard({
                                     </label>
                                 </div>
                                 <span className="text-xs font-bold text-[var(--primary)]">
-                                    {modulesBase64.length > 0 ? `${modulesBase64.length} module(s)` : 'Select build/package_name/bytecode_modules/ folder'}
+                                    {modulesBase64.length > 0 ? `${modulesBase64.length} module(s)` : ''}
                                 </span>
                             </div>
                             {statusMsg && (

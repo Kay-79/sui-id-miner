@@ -4,6 +4,8 @@ interface MiningControlProps {
     mode: MiningMode
     isRunning: boolean
     isConfigValid: boolean
+    isConnected: boolean
+    onConnect: () => void
     startMining: () => void
     stopMining: () => void
     hashrate: number
@@ -22,6 +24,8 @@ export default function MiningControl({
     mode,
     isRunning,
     isConfigValid: _isConfigValid,
+    isConnected,
+    onConnect,
     startMining,
     stopMining,
     hashrate,
@@ -40,13 +44,22 @@ export default function MiningControl({
                             </span>
                         </>
                     ) : (
-                        <span className="text-xl font-bold">Ready to mine</span>
+                        <span className="text-xl font-bold">
+                            {isConnected ? 'Ready to mine' : '⚠️ Not Connected'}
+                        </span>
                     )}
                 </div>
                 
                 {isRunning ? (
                     <button onClick={stopMining} className="brutal-btn brutal-btn-stop">
                         ⏹️ Stop Mining
+                    </button>
+                ) : !isConnected ? (
+                    <button 
+                        onClick={onConnect}
+                        className="brutal-btn bg-[var(--primary)] text-white"
+                    >
+                        🔗 Connect local server
                     </button>
                 ) : (
                     <button 
@@ -64,7 +77,9 @@ export default function MiningControl({
                 <div className="mt-6 p-4 bg-white border-2 border-black flex flex-wrap gap-6 justify-center md:justify-between text-center">
                     <div>
                         <div className="text-xs font-bold uppercase text-gray-500">Hashrate</div>
-                        <div className="text-xl font-black">{formatNumber(hashrate)} H/s</div>
+                        <div className="text-xl font-black">
+                            {hashrate > 0 ? `${formatNumber(hashrate)} H/s` : '⏳ Calculating...'}
+                        </div>
                     </div>
                     <div>
                         <div className="text-xs font-bold uppercase text-gray-500">Attempts</div>

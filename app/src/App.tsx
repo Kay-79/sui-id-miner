@@ -29,7 +29,7 @@ function App() {
     );
     const [gasObjectId, setGasObjectId] = useState("");
     const [network, setNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('testnet');
-    const [isFetchingGas, setIsFetchingGas] = useState(false);
+    const [threadCount, setThreadCount] = useState(0); // 0 = auto (use all cores)
 
     // WebSocket Miner
     const wsMiner = useWebSocketMiner();
@@ -125,7 +125,6 @@ function App() {
             }
 
             // Auto-fetch gas object version/digest right before mining
-            setIsFetchingGas(true);
             showToast("⏳ Fetching gas object details...", "info");
             
             try {
@@ -134,7 +133,6 @@ function App() {
                 
                 if (!data.data) {
                     showToast("❌ Gas object not found!", "error");
-                    setIsFetchingGas(false);
                     return;
                 }
 
@@ -153,17 +151,16 @@ function App() {
                     gasObjectId,
                     gasObjectVersion: gasVersion,
                     gasObjectDigest: gasDigest,
+                    threads: threadCount > 0 ? threadCount : undefined,
                 });
             } catch (e: any) {
                 showToast("❌ Failed to fetch gas object: " + e.message, "error");
-            } finally {
-                setIsFetchingGas(false);
             }
             return;
         }
 
         if (mode === "ADDRESS") {
-            wsMiner.startAddressMining({ prefix });
+            wsMiner.startAddressMining({ prefix, threads: threadCount > 0 ? threadCount : undefined });
         }
     }, [
         isValidPrefix,
@@ -197,39 +194,6 @@ function App() {
             <Header />
 
             <div className="max-w-4xl mx-auto grid gap-6">
-                {/* Connection Status */}
-                <div className="brutal-card p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <span
-                            className={`w-3 h-3 rounded-full ${
-                                wsMiner.isConnected ? "bg-green-500" : "bg-red-500"
-                            }`}
-                        ></span>
-                        <span className="font-bold">
-                            {wsMiner.isConnected
-                                ? "🔗 Connected to Local Server"
-                                : "⚠️ Not Connected"}
-                        </span>
-                    </div>
-                    <div className="flex gap-2">
-                        {!wsMiner.isConnected ? (
-                            <button
-                                onClick={() => wsMiner.connect()}
-                                className="brutal-btn bg-[var(--primary)] text-white text-sm py-1 px-3"
-                            >
-                                Connect
-                            </button>
-                        ) : (
-                            <button
-                                onClick={() => wsMiner.disconnect()}
-                                className="brutal-btn bg-gray-200 text-black text-sm py-1 px-3"
-                            >
-                                Disconnect
-                            </button>
-                        )}
-                    </div>
-                </div>
-
                 {wsMiner.error && (
                     <div className="brutal-card p-4 bg-red-50 border-red-500 text-red-700">
                         ❌ {wsMiner.error}
@@ -256,12 +220,16 @@ function App() {
                     setGasObjectId={setGasObjectId}
                     network={network}
                     setNetwork={setNetwork}
+                    threadCount={threadCount}
+                    setThreadCount={setThreadCount}
                 />
 
                 <MiningControl
                     mode={mode}
                     isRunning={wsMiner.isRunning}
                     isConfigValid={!!(isConfigValid && wsMiner.isConnected)}
+                    isConnected={wsMiner.isConnected}
+                    onConnect={() => wsMiner.connect()}
                     startMining={startMining}
                     stopMining={stopMining}
                     hashrate={hashrate}
