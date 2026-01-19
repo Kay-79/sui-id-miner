@@ -20,7 +20,7 @@ function App() {
     const [prefix, setPrefix] = useState("");
 
     // Package Mode Specific Config
-    const [baseGasBudget, setBaseGasBudget] = useState(500000000);
+    const [baseGasBudget, setBaseGasBudget] = useState(100000000);
 
     // Package Mode: Module storage + Gas Object
     const [modulesBase64, setModulesBase64] = useState<string[]>([]);
@@ -125,21 +125,21 @@ function App() {
             }
 
             // Auto-fetch gas object version/digest right before mining
-            showToast("⏳ Fetching gas object details...", "info");
+            showToast("Fetching gas object details...", "info");
             
             try {
                 const client = new SuiClient({ url: getFullnodeUrl(network) });
                 const data = await client.getObject({ id: gasObjectId });
                 
                 if (!data.data) {
-                    showToast("❌ Gas object not found!", "error");
+                    showToast("Gas object not found!", "error");
                     return;
                 }
 
                 const gasVersion = data.data.version;
                 const gasDigest = data.data.digest;
                 
-                showToast(`✅ Gas object verified: v${gasVersion}`, "success");
+                showToast(`Gas object verified: v${gasVersion}`, "success");
                 
                 // Start mining - hook auto-tracks epoch (gas digest) and resumes nonce
                 wsMiner.startPackageMining({
@@ -154,7 +154,7 @@ function App() {
                     threads: threadCount > 0 ? threadCount : undefined,
                 });
             } catch (e: any) {
-                showToast("❌ Failed to fetch gas object: " + e.message, "error");
+                showToast("Failed to fetch gas object: " + e.message, "error");
             }
             return;
         }

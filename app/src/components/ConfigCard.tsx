@@ -235,34 +235,31 @@ export default function ConfigCard({
                             />
                         </div>
 
-                        {/* Gas Budget */}
-                        <div>
-                            <label className="block text-xs font-bold uppercase mb-1">Gas Budget</label>
-                            <input
-                                type="number"
-                                value={baseGasBudget}
-                                onChange={(e) => setBaseGasBudget(parseInt(e.target.value) || 0)}
-                                className="brutal-input font-mono text-sm"
-                            />
-                        </div>
-
-                        {/* Thread Count */}
-                        <div>
-                            <label className="block text-xs font-bold uppercase mb-1">CPU Threads</label>
-                            <div className="flex items-center gap-2">
+                        {/* Gas Budget & Thread Count - same row */}
+                        <div className="flex gap-4">
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold uppercase mb-1">Gas Budget</label>
                                 <input
                                     type="number"
-                                    min={0}
-                                    max={64}
-                                    value={threadCount}
-                                    onChange={(e) => setThreadCount(Math.max(0, parseInt(e.target.value) || 0))}
-                                    className="brutal-input font-mono text-sm py-1 w-20"
-                                    disabled={isRunning}
-                                    placeholder="0"
+                                    value={baseGasBudget}
+                                    onChange={(e) => setBaseGasBudget(parseInt(e.target.value) || 0)}
+                                    className="brutal-input font-mono text-sm"
                                 />
-                                <span className="text-xs text-gray-500">
-                                    {threadCount === 0 ? '0 = Auto (All Cores)' : `${threadCount} thread${threadCount > 1 ? 's' : ''}`}
-                                </span>
+                            </div>
+                            <div className="w-40">
+                                <label className="block text-xs font-bold uppercase mb-1">CPU Threads</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={64}
+                                        value={threadCount || ''}
+                                        onChange={(e) => setThreadCount(Math.max(0, parseInt(e.target.value) || 0))}
+                                        className="brutal-input font-mono text-sm py-1 w-20"
+                                        disabled={isRunning}
+                                        placeholder="Auto"
+                                    />
+                                </div>
                             </div>
                         </div>
 

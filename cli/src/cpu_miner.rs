@@ -50,6 +50,7 @@ impl CpuMiner {
         // Each thread gets a range of nonces to work on
         // Start from start_nonce for resume functionality
         let nonce_counter = Arc::new(AtomicU64::new(start_nonce));
+        let initial_start_nonce = start_nonce; // Save for calculating relative attempts
         let chunk_size = 10_000u64; // Each thread grabs 10K nonces at a time
 
         let handles: Vec<_> = (0..self.threads)
@@ -103,13 +104,16 @@ impl CpuMiner {
                                         )
                                         .is_ok()
                                     {
+                                        // Calculate relative attempts (not absolute nonce)
+                                        let relative_attempts =
+                                            n.saturating_sub(initial_start_nonce);
                                         let result = MiningResult {
                                             package_id,
                                             tx_digest,
                                             tx_bytes: tx_bytes.clone(),
                                             nonce: n,
                                             gas_budget_used: varied_gas_budget,
-                                            attempts: n,
+                                            attempts: relative_attempts,
                                         };
                                         *result_holder.lock().unwrap() = Some(result);
                                     }
