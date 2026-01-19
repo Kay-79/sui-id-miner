@@ -1,3 +1,4 @@
+mod common;
 mod cpu_miner;
 mod module_order;
 mod progress;
@@ -5,9 +6,13 @@ mod server;
 mod target;
 mod types;
 
+use crate::common::{create_tx_template, format_large_number, randomize_gas_budget};
+use crate::cpu_miner::CpuMiner;
 use anyhow::{Context, Result};
 use base64::{Engine as _, engine::general_purpose};
 use clap::Parser;
+use rand::Rng;
+use rand::rngs::OsRng;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -17,13 +22,8 @@ use std::thread;
 use std::time::Duration;
 
 use sui_sdk::SuiClientBuilder;
-use sui_types::{
-    base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress},
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionData,
-};
+use sui_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress};
 
-use crate::cpu_miner::CpuMiner;
 use crate::module_order::sort_modules_by_dependency;
 use crate::progress::ProgressDisplay;
 use crate::target::TargetChecker;
@@ -166,11 +166,20 @@ async fn main() -> Result<()> {
         )
     };
 
+    // Randomize gas budget using shared logic
+    let (effective_gas_budget, extra_gas) = randomize_gas_budget(args.gas_budget);
+    if extra_gas > 0 {
+        println!(
+            "Adjusted Gas Budget: {} (Base: {} + Random: {})",
+            effective_gas_budget, args.gas_budget, extra_gas
+        );
+    }
+
     // Create transaction template with salt placeholder
     let (tx_template, salt_offset) = create_tx_template(
         sender,
         module_bytes,
-        args.gas_budget,
+        effective_gas_budget,
         args.gas_price,
         gas_payment,
     )?;
@@ -221,10 +230,16 @@ async fn main() -> Result<()> {
         })
     };
 
-    // Start mining
-    println!("💻 Starting CPU mining with {} threads...\n", threads);
+    // Start mining with randomized epoch
+    let mut rng = OsRng;
+    let start_epoch = rng.gen_range(100_000..(u64::MAX - 1_000_000_000));
+    println!(
+        "💻 Starting CPU mining with {} threads... (Start Epoch: {})\n",
+        threads,
+        format_large_number(start_epoch)
+    );
     let miner = CpuMiner::new(tx_template.clone(), salt_offset, target.clone(), threads);
-    let result = miner.mine(total_attempts.clone(), cancel.clone());
+    let result = miner.mine(start_epoch, total_attempts.clone(), cancel.clone()); // Start from random epoch
 
     // Stop progress thread
     cancel.store(true, Ordering::SeqCst);
@@ -316,76 +331,6 @@ fn load_module_bytes(path: &Option<PathBuf>) -> Result<Vec<Vec<u8>>> {
             println!("⚠️  No module path specified, using mock data for testing");
             Ok(vec![vec![0u8; 100]]) // 100-byte mock module
         }
-    }
-}
-
-fn create_tx_template(
-    sender: SuiAddress,
-    module_bytes: Vec<Vec<u8>>,
-    base_gas_budget: u64,
-    gas_price: u64,
-    gas_payment: (ObjectID, SequenceNumber, ObjectDigest),
-) -> Result<(Vec<u8>, usize)> {
-    // Standard dependencies
-    let dependencies = vec![ObjectID::from_str("0x1")?, ObjectID::from_str("0x2")?];
-
-    // Build PTB (no salt input - we vary gas_budget instead)
-    let mut ptb = ProgrammableTransactionBuilder::new();
-
-    // Add publish command - returns UpgradeCap
-    let upgrade_cap = ptb.publish_upgradeable(module_bytes, dependencies);
-
-    // Transfer UpgradeCap to sender (required to consume the result)
-    ptb.transfer_arg(sender, upgrade_cap);
-
-    let pt = ptb.finish();
-
-    // Use a placeholder gas_budget that we'll vary during mining
-    // The nonce will be embedded in the lower bits of gas_budget
-    let placeholder_gas_budget = 0xAAAAAAAAAAAAAAAAu64;
-
-    // Create transaction data
-    let tx_data = TransactionData::new_programmable(
-        sender,
-        vec![gas_payment],
-        pt,
-        placeholder_gas_budget,
-        gas_price,
-    );
-
-    // Serialize
-    let tx_bytes = bcs::to_bytes(&tx_data)?;
-
-    // Find the gas_budget offset (look for our placeholder pattern)
-    let placeholder_bytes = placeholder_gas_budget.to_le_bytes();
-    let gas_budget_offset = find_pattern(&tx_bytes, &placeholder_bytes)
-        .context("Could not find gas_budget placeholder in transaction bytes")?;
-
-    // Replace placeholder with actual base gas budget in the template
-    let mut tx_template = tx_bytes;
-    tx_template[gas_budget_offset..gas_budget_offset + 8]
-        .copy_from_slice(&base_gas_budget.to_le_bytes());
-
-    Ok((tx_template, gas_budget_offset))
-}
-
-fn find_pattern(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack
-        .windows(needle.len())
-        .position(|window| window == needle)
-}
-
-fn format_large_number(n: u64) -> String {
-    if n >= 1_000_000_000_000 {
-        format!("{:.2}T", n as f64 / 1_000_000_000_000.0)
-    } else if n >= 1_000_000_000 {
-        format!("{:.2}B", n as f64 / 1_000_000_000.0)
-    } else if n >= 1_000_000 {
-        format!("{:.2}M", n as f64 / 1_000_000.0)
-    } else if n >= 1_000 {
-        format!("{:.2}K", n as f64 / 1_000.0)
-    } else {
-        format!("{}", n)
     }
 }
 

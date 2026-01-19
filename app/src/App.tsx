@@ -141,7 +141,7 @@ function App() {
                 
                 showToast(`✅ Gas object verified: v${gasVersion}`, "success");
                 
-                // Start mining with fresh gas details
+                // Start mining - hook auto-tracks epoch (gas digest) and resumes nonce
                 wsMiner.startPackageMining({
                     prefix,
                     modulesBase64,

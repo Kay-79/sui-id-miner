@@ -12,6 +12,7 @@ interface PackageMiningConfig {
     gasObjectVersion: string
     gasObjectDigest: string
     threads?: number
+    nonceOffset?: number // Resume from this nonce
 }
 
 interface AddressMiningConfig {
@@ -46,6 +47,9 @@ interface UseWebSocketMinerReturn {
     packageResult: PackageResult | null
     addressResult: AddressResult | null
     error: string | null
+    lastNonce: number // For resume functionality
+    lastEpoch: string // Current mining epoch
+    resetNonce: () => void // Reset nonce for new mining session
     connect: (port?: number) => void
     disconnect: () => void
     startPackageMining: (config: PackageMiningConfig) => void
@@ -60,8 +64,16 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
     const [packageResult, setPackageResult] = useState<PackageResult | null>(null)
     const [addressResult, setAddressResult] = useState<AddressResult | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [lastNonce, setLastNonce] = useState(0)
+    const [lastEpoch, setLastEpoch] = useState('') // Epoch = gas digest (changes with new version)
     
     const wsRef = useRef<WebSocket | null>(null)
+    
+    // Reset nonce for new mining session
+    const resetNonce = useCallback(() => {
+        setLastNonce(0)
+        setLastEpoch('')
+    }, [])
     
     const connect = useCallback((port: number = 9876) => {
         if (wsRef.current) {
@@ -135,6 +147,10 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
                         break
                         
                     case 'stopped':
+                        // Save last_nonce for resume
+                        if (msg.last_nonce !== undefined) {
+                            setLastNonce(msg.last_nonce)
+                        }
                         setIsRunning(false)
                         break
                         
@@ -164,6 +180,24 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
             return
         }
         
+        // Check if epoch (gas digest) changed - if so, reset nonce
+        const currentEpoch = config.gasObjectDigest
+        let nonceToUse = config.nonceOffset || 0
+        
+        if (currentEpoch !== lastEpoch) {
+            // New epoch (gas object changed) - start from 0
+            console.log(`[Mining] New epoch detected: ${currentEpoch.slice(0, 8)}... (was: ${lastEpoch.slice(0, 8) || 'none'})`)
+            nonceToUse = 0
+            setLastNonce(0)
+        } else if (lastNonce > 0) {
+            // Same epoch - resume from last nonce
+            console.log(`[Mining] Resuming from nonce: ${lastNonce}`)
+            nonceToUse = lastNonce
+        }
+        
+        // Update current epoch
+        setLastEpoch(currentEpoch)
+        
         const message = {
             type: 'start_package_mining',
             prefix: config.prefix,
@@ -175,13 +209,14 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
             gas_object_version: parseInt(config.gasObjectVersion) || 0,
             gas_object_digest: config.gasObjectDigest,
             threads: config.threads,
+            nonce_offset: nonceToUse,
         }
         
         setPackageResult(null)
         setAddressResult(null)
         setError(null)
         wsRef.current.send(JSON.stringify(message))
-    }, [])
+    }, [lastEpoch, lastNonce])
     
     const startAddressMining = useCallback((config: AddressMiningConfig) => {
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -223,6 +258,9 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
         packageResult,
         addressResult,
         error,
+        lastNonce,
+        lastEpoch,
+        resetNonce,
         connect,
         disconnect,
         startPackageMining,

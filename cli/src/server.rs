@@ -17,13 +17,11 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-use sui_types::{
-    base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress},
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionData,
-};
+use sui_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress};
 
+use crate::common::{create_tx_template, format_large_number, randomize_gas_budget};
 use fastcrypto::hash::{Blake2b256, HashFunction};
+use rand::Rng;
 use rand::rngs::OsRng;
 
 /// Message from Web Client
@@ -41,6 +39,8 @@ pub enum ClientMessage {
         gas_object_version: u64,
         gas_object_digest: String,
         threads: Option<usize>,
+        #[serde(default)]
+        nonce_offset: u64, // Resume from this nonce
     },
     #[serde(rename = "start_address_mining")]
     StartAddressMining {
@@ -88,7 +88,7 @@ pub enum ServerMessage {
     },
 
     #[serde(rename = "stopped")]
-    Stopped { attempts: u64 },
+    Stopped { attempts: u64, last_nonce: u64 },
 
     #[serde(rename = "error")]
     Error { message: String },
@@ -170,6 +170,7 @@ async fn handle_connection(
                         gas_object_version,
                         gas_object_digest,
                         threads,
+                        nonce_offset,
                     }) => {
                         // Use client modules if provided, otherwise fallback to default
                         let mut mut_modules = modules_base64
@@ -234,6 +235,7 @@ async fn handle_connection(
                                 gas_object_version,
                                 gas_object_digest,
                                 thread_count,
+                                nonce_offset,
                                 cancel_clone,
                                 out_tx_clone,
                             );
@@ -403,6 +405,7 @@ fn run_address_mining(
     if !found.load(Ordering::Relaxed) {
         let _ = out_tx.blocking_send(ServerMessage::Stopped {
             attempts: total_attempts.load(Ordering::Relaxed),
+            last_nonce: 0, // Address mining doesn't use nonce
         });
     }
 }
@@ -442,9 +445,32 @@ fn run_package_mining(
     gas_object_version: u64,
     gas_object_digest: String,
     threads: usize,
+    mut start_nonce: u64,
     cancel: Arc<AtomicBool>,
     out_tx: mpsc::Sender<ServerMessage>,
 ) -> Result<()> {
+    // If start_nonce is 0 (fresh start), randomize it to avoid re-mining the same range.
+    // Range: [100,000, u64::MAX - 1,000,000,000]
+    // 100,000 is safe buffer above current mainnet epoch.
+    // u64::MAX buffer avoids immediate overflow during crunching.
+    if start_nonce == 0 {
+        let mut rng = OsRng;
+        start_nonce = rng.gen_range(100_000..(u64::MAX - 1_000_000_000));
+        println!(
+            "Mining starting with randomized expiration epoch: {}",
+            format_large_number(start_nonce)
+        );
+    }
+
+    // Randomize gas budget using shared logic
+    let (effective_gas_budget, extra_gas) = randomize_gas_budget(gas_budget);
+    if extra_gas > 0 {
+        println!(
+            "Adjusted Gas Budget: {} (Base: {} + Random: {})",
+            effective_gas_budget, gas_budget, extra_gas
+        );
+    }
+
     use std::str::FromStr;
 
     let target = TargetChecker::from_hex_prefix(&prefix).context("Invalid prefix")?;
@@ -465,8 +491,13 @@ fn run_package_mining(
 
     let gas_payment = (gas_obj_id, gas_seq, gas_digest);
 
-    let (tx_template, salt_offset) =
-        create_tx_template(sender_addr, modules, gas_budget, gas_price, gas_payment)?;
+    let (tx_template, salt_offset) = create_tx_template(
+        sender_addr,
+        modules,
+        effective_gas_budget,
+        gas_price,
+        gas_payment,
+    )?;
 
     let _ = out_tx.blocking_send(ServerMessage::MiningStarted {
         mode: "PACKAGE".to_string(),
@@ -509,7 +540,7 @@ fn run_package_mining(
     });
 
     let miner = CpuMiner::new(tx_template, salt_offset, target, threads);
-    let result = miner.mine(total_attempts.clone(), cancel.clone());
+    let result = miner.mine(start_nonce, total_attempts.clone(), cancel.clone());
 
     cancel.store(true, Ordering::SeqCst);
     let _ = progress_thread.join();
@@ -523,46 +554,13 @@ fn run_package_mining(
             gas_budget_used: res.gas_budget_used,
         });
     } else {
-        let _ = out_tx.blocking_send(ServerMessage::Stopped { attempts: 0 });
+        // Return last nonce so FE can resume
+        let last_nonce = total_attempts.load(Ordering::Relaxed);
+        let _ = out_tx.blocking_send(ServerMessage::Stopped {
+            attempts: last_nonce,
+            last_nonce,
+        });
     }
 
     Ok(())
-}
-
-fn create_tx_template(
-    sender: SuiAddress,
-    module_bytes: Vec<Vec<u8>>,
-    base_gas_budget: u64,
-    gas_price: u64,
-    gas_payment: (ObjectID, SequenceNumber, ObjectDigest),
-) -> Result<(Vec<u8>, usize)> {
-    use std::str::FromStr;
-
-    let dependencies = vec![ObjectID::from_str("0x1")?, ObjectID::from_str("0x2")?];
-    let mut ptb = ProgrammableTransactionBuilder::new();
-    let upgrade_cap = ptb.publish_upgradeable(module_bytes, dependencies);
-    ptb.transfer_arg(sender, upgrade_cap);
-    let pt = ptb.finish();
-
-    let placeholder_gas_budget = 0xAAAAAAAAAAAAAAAAu64;
-    let tx_data = TransactionData::new_programmable(
-        sender,
-        vec![gas_payment],
-        pt,
-        placeholder_gas_budget,
-        gas_price,
-    );
-
-    let tx_bytes = bcs::to_bytes(&tx_data)?;
-    let placeholder_bytes = placeholder_gas_budget.to_le_bytes();
-    let gas_budget_offset = tx_bytes
-        .windows(placeholder_bytes.len())
-        .position(|window| window == placeholder_bytes)
-        .context("Could not find gas_budget placeholder")?;
-
-    let mut tx_template = tx_bytes;
-    tx_template[gas_budget_offset..gas_budget_offset + 8]
-        .copy_from_slice(&base_gas_budget.to_le_bytes());
-
-    Ok((tx_template, gas_budget_offset))
 }
