@@ -5,7 +5,7 @@
 **High-performance Vanity Package ID Miner for Sui Blockchain**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/Rust-1.92%2B-orange.svg)](https://www.rust-lang.org/)
 [![Sui](https://img.shields.io/badge/Sui-Blockchain-blue.svg)](https://sui.io/)
 
 [📖 CLI Documentation](./cli/README.md) • [🌐 Web UI Documentation](./app/README.md)

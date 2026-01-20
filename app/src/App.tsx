@@ -76,6 +76,13 @@ function App() {
         }
     }, [wsMiner.packageResult])
 
+    // Show toast on WS error
+    useEffect(() => {
+        if (wsMiner.error) {
+            showToast(wsMiner.error, 'error')
+        }
+    }, [wsMiner.error, showToast])
+
     // Actions
     const startMining = useCallback(async () => {
         // Validate and show toast for missing fields
@@ -173,11 +180,7 @@ function App() {
             <Header />
 
             <div className="max-w-4xl mx-auto grid gap-6">
-                {wsMiner.error && (
-                    <div className="brutal-card p-4 bg-red-50 border-red-500 text-red-700">
-                        ❌ {wsMiner.error}
-                    </div>
-                )}
+
 
                 {/* <ModeSwitcher mode={mode} isRunning={wsMiner.isRunning} setMode={setMode} /> */}
 

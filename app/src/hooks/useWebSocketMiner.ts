@@ -97,7 +97,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
 
         ws.onerror = () => {
             console.error('[WS] Connection error')
-            setError('Cannot connect to local server. Is sui-id-miner --server running?')
+            setError('Please start sui-id-miner server first')
             setIsConnected(false)
         }
 
