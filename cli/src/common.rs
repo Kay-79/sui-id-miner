@@ -151,6 +151,39 @@ pub fn create_split_tx_template(
     Ok((tx_bytes, nonce_offset, num_outputs))
 }
 
+/// Create a mining template from existing transaction bytes
+/// This is used for generic Move Calls or other transactions provided by the frontend
+pub fn create_template_from_bytes(
+    original_tx_bytes: &[u8],
+) -> Result<(Vec<u8>, usize)> {
+    // Deserialize
+    let tx_data: TransactionData = bcs::from_bytes(original_tx_bytes)
+        .context("Failed to deserialize transaction bytes")?;
+
+    // Create placeholder epoch
+    let placeholder_epoch = 0xAAAAAAAAAAAAAAAAu64;
+    let expiration = TransactionExpiration::Epoch(placeholder_epoch);
+
+    // Modify expiration in V1
+    // Note: If Sui adds V2 in future, this needs update. Currently only V1 exists.
+    let new_tx_data = match tx_data {
+        TransactionData::V1(mut v1) => {
+            v1.expiration = expiration;
+            TransactionData::V1(v1)
+        }
+    };
+
+    // Serialize
+    let tx_bytes = bcs::to_bytes(&new_tx_data)?;
+
+    // Find offset
+    let placeholder_bytes = placeholder_epoch.to_le_bytes();
+    let nonce_offset = find_pattern(&tx_bytes, &placeholder_bytes)
+        .context("Could not find expiration epoch placeholder in re-serialized transaction bytes")?;
+
+    Ok((tx_bytes, nonce_offset))
+}
+
 fn find_pattern(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
         .windows(needle.len())

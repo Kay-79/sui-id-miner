@@ -29,6 +29,18 @@ interface ConfigCardProps {
     // Gas Coin mode
     splitAmounts: number[]
     setSplitAmounts: (amounts: number[]) => void
+    // Move Call mode
+    txBytesBase64: string
+    setTxBytesBase64: (s: string) => void
+    targetIndex: number
+    setTargetIndex: (n: number) => void
+    // Move Call Form
+    mcTarget: string
+    setMcTarget: (s: string) => void
+    mcTypeArgs: string[]
+    setMcTypeArgs: (args: string[]) => void
+    mcArgs: { type: string; value: string }[]
+    setMcArgs: (args: { type: string; value: string }[]) => void
 }
 
 function formatNumber(n: number): string {
@@ -61,10 +73,21 @@ export default function ConfigCard({
     setThreadCount,
     splitAmounts,
     setSplitAmounts,
+    txBytesBase64,
+    setTxBytesBase64,
+    targetIndex,
+    setTargetIndex,
+    mcTarget,
+    setMcTarget,
+    mcTypeArgs,
+    setMcTypeArgs,
+    mcArgs,
+    setMcArgs,
 }: ConfigCardProps) {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [statusMsg, setStatusMsg] = useState('')
     const [isFetching, setIsFetching] = useState(false)
+    const [useBuilder, setUseBuilder] = useState(true) // Default to builder
 
     // Read .mv files and convert to Base64
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,15 +216,35 @@ export default function ConfigCard({
         return () => clearTimeout(timer)
     }, [sender, network])
 
+    // Helper to get config label
+    const getConfigLabel = (m: MiningMode) => {
+        switch (m) {
+            case 'PACKAGE': return '📦 Package Config'
+            case 'GAS_COIN': return '🪙 Gas Coin Config'
+            case 'MOVE_CALL': return '⚡ Move Call Config'
+            default: return '⚙️ Config'
+        }
+    }
+
+    const getModeDescription = (m: MiningMode) => {
+        switch (m) {
+            case 'PACKAGE': return 'Vanity Package ID for your Move smart contract. (Result: 0x...::module)'
+            case 'GAS_COIN': return 'Vanity ID for a split Coin<SUI> object. You can use it as Gas or just keep it.'
+            case 'MOVE_CALL': return 'Vanity ID for an object created / transferred by a Move transaction (e.g. Minting an NFT).'
+            default: return ''
+        }
+    }
+
     return (
-        <div className="brutal-card p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="heading-lg flex items-center gap-2">
-                    {mode === 'PACKAGE' ? '📦 Package Config' : '🪙 Gas Coin Config'}
+        <div className="brutal-card p-6 mb-8 relative">
+            <div className="flex justify-between items-center mb-2">
+                <h2 className="heading-lg flex items-center gap-3">
+                    {getConfigLabel(mode)}
+                    {/* Status Dot */}
                 </h2>
                 {/* Mode Switcher */}
                 <div className="flex gap-1">
-                    {(['PACKAGE', 'GAS_COIN'] as const).map((m) => (
+                    {(['PACKAGE', 'GAS_COIN', 'MOVE_CALL'] as const).map((m) => (
                         <button
                             key={m}
                             onClick={() => setMode(m)}
@@ -212,10 +255,14 @@ export default function ConfigCard({
                                     : 'bg-white text-black hover:bg-gray-100'}
                                 ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            {m === 'PACKAGE' ? '📦 Package' : '🪙 Gas Coin'}
+                            {m === 'PACKAGE' ? '📦 Package' : m === 'GAS_COIN' ? '🪙 Gas Coin' : '⚡ Move Call'}
                         </button>
                     ))}
                 </div>
+            </div>
+
+            <div className="mb-6 p-2 bg-gray-100 border border-gray-300 text-sm text-gray-700 rounded-sm">
+                💡 <strong>Info:</strong> {getModeDescription(mode)}
             </div>
 
             <div className="grid gap-6">
@@ -478,6 +525,182 @@ export default function ConfigCard({
                         </div>
 
                         {statusMsg && <p className="text-xs mt-2 font-medium">{statusMsg}</p>}
+                    </div>
+                )}
+
+                {/* Move Call Mode Config */}
+                {mode === 'MOVE_CALL' && (
+                    <div className="space-y-4 p-4 bg-purple-50 border-2 border-dashed border-purple-300">
+                        {/* Builder Toggle */}
+                        <div className="flex gap-2 mb-4">
+                            <button
+                                onClick={() => setUseBuilder(true)}
+                                className={`px-3 py-1 text-xs font-bold uppercase border border-purple-600 ${useBuilder ? 'bg-purple-600 text-white' : 'bg-white text-purple-600'}`}
+                            >
+                                🛠️ Form Builder
+                            </button>
+                            <button
+                                onClick={() => setUseBuilder(false)}
+                                className={`px-3 py-1 text-xs font-bold uppercase border border-purple-600 ${!useBuilder ? 'bg-purple-600 text-white' : 'bg-white text-purple-600'}`}
+                            >
+                                📝 Raw Bytes
+                            </button>
+                        </div>
+
+                        {useBuilder ? (
+                            <div className="space-y-4">
+                                {/* Target */}
+                                <div>
+                                    <label className="block text-xs font-bold uppercase mb-1">
+                                        Target Function
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={mcTarget}
+                                        onChange={(e) => setMcTarget(e.target.value)}
+                                        className="brutal-input font-mono text-sm w-full"
+                                        placeholder="package::module::function"
+                                        disabled={isRunning}
+                                    />
+                                </div>
+
+                                {/* Type Args */}
+                                <div>
+                                    <label className="block text-xs font-bold uppercase mb-1">
+                                        Type Arguments (Optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={mcTypeArgs.join(', ')}
+                                        onChange={(e) => setMcTypeArgs(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                                        className="brutal-input font-mono text-sm w-full"
+                                        placeholder="0x2::sui::SUI, 0x..."
+                                        disabled={isRunning}
+                                    />
+                                </div>
+
+                                {/* Arguments */}
+                                <div>
+                                    <label className="block text-xs font-bold uppercase mb-2">
+                                        Function Input Arguments
+                                    </label>
+                                    <div className="space-y-3">
+                                        {mcArgs.map((arg, idx) => (
+                                            <div key={idx} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-white p-2 border border-purple-200 shadow-sm">
+                                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                    <span className="text-[10px] text-gray-400 font-mono w-4">#{idx}</span>
+                                                    <select
+                                                        value={arg.type}
+                                                        onChange={(e) => {
+                                                            const newArgs = [...mcArgs]
+                                                            newArgs[idx].type = e.target.value
+                                                            setMcArgs(newArgs)
+                                                        }}
+                                                        className="brutal-input text-xs h-8 py-0 min-w-[100px]"
+                                                        disabled={isRunning}
+                                                    >
+                                                        <option value="string">String</option>
+                                                        <option value="number">Number</option>
+                                                        <option value="address">Address</option>
+                                                        <option value="bool">Bool</option>
+                                                        <option value="object">Object ID</option>
+                                                    </select>
+                                                </div>
+
+                                                <input
+                                                    type="text"
+                                                    value={arg.value}
+                                                    onChange={(e) => {
+                                                        const newArgs = [...mcArgs]
+                                                        newArgs[idx].value = e.target.value
+                                                        setMcArgs(newArgs)
+                                                    }}
+                                                    className="brutal-input font-mono text-sm flex-1 w-full min-w-[120px]"
+                                                    placeholder={arg.type === 'bool' ? 'true/false' : `Value for ${arg.type}`}
+                                                    disabled={isRunning}
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const newArgs = mcArgs.filter((_, i) => i !== idx)
+                                                        setMcArgs(newArgs)
+                                                    }}
+                                                    className="px-2 py-1 border border-red-500 text-red-500 font-bold hover:bg-red-50 text-xs self-end sm:self-center"
+                                                    disabled={isRunning}
+                                                    title="Remove Argument"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            onClick={() => setMcArgs([...mcArgs, { type: 'string', value: '' }])}
+                                            className="w-full py-2 border-2 border-dashed border-purple-400 text-purple-600 font-bold text-xs uppercase hover:bg-purple-100 transition-colors"
+                                            disabled={isRunning}
+                                        >
+                                            + Add Argument Input
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            /* Transaction Bytes */
+                            <div>
+                                <label className="block text-xs font-bold uppercase mb-1">
+                                    Transaction Bytes (Base64)
+                                </label>
+                                <textarea
+                                    value={txBytesBase64}
+                                    onChange={(e) => setTxBytesBase64(e.target.value)}
+                                    className="brutal-input text-xs font-mono py-2 h-24 w-full"
+                                    placeholder="Paste Base64 encoded transaction bytes here..."
+                                    disabled={isRunning}
+                                />
+                                <p className="text-[10px] text-gray-500 mt-1">
+                                    Build a transaction and export as BCS bytes.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Target Index & Threads */}
+                        <div className="flex gap-4 border-t border-purple-200 pt-4 mt-4">
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold uppercase mb-1">
+                                    Target Object Index
+                                </label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={targetIndex}
+                                    onChange={(e) =>
+                                        setTargetIndex(Math.max(0, parseInt(e.target.value) || 0))
+                                    }
+                                    className="brutal-input font-mono text-sm"
+                                    placeholder="0"
+                                    disabled={isRunning}
+                                />
+                            </div>
+                            <div className="w-40">
+                                <label className="block text-xs font-bold uppercase mb-1">
+                                    CPU Threads
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={64}
+                                        value={threadCount || ''}
+                                        onChange={(e) =>
+                                            setThreadCount(
+                                                Math.max(0, parseInt(e.target.value) || 0)
+                                            )
+                                        }
+                                        className="brutal-input font-mono text-sm py-1 w-20"
+                                        disabled={isRunning}
+                                        placeholder="Auto"
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

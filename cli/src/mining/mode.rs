@@ -92,6 +92,39 @@ impl MiningMode for GasCoinMode {
     }
 }
 
+/// Generic Single Object mining mode
+/// Checks a specific object index (e.g. 0 for first object created by Move Call)
+#[derive(Clone, Debug)]
+pub struct SingleObjectMode {
+    pub object_index: u16,
+}
+
+impl SingleObjectMode {
+    pub fn new(object_index: u16) -> Self {
+        Self { object_index }
+    }
+}
+
+impl MiningMode for SingleObjectMode {
+    fn check_match(
+        &self,
+        tx_digest: &TransactionDigest,
+        target: &TargetChecker,
+    ) -> Option<(ObjectID, u16)> {
+        let object_id = ObjectID::derive_id(*tx_digest, self.object_index as u64);
+        if target.matches(&object_id.into_bytes()) {
+            Some((object_id, self.object_index))
+        } else {
+            None
+        }
+    }
+
+    #[allow(dead_code)]
+    fn description(&self) -> &'static str {
+        "Single Object ID"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

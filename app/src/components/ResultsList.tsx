@@ -122,10 +122,11 @@ export default function ResultsList({ results, clearResults, sender, network }: 
             <div className="space-y-4">
                 {results.map((result, idx) => {
                     const isExpanded = expandedResults.has(idx)
-                    const displayId = result.type === 'GAS_COIN'
+                    const isGasCoin = result.type === 'GAS_COIN'
+                    const isMoveCall = result.type === 'MOVE_CALL'
+                    const displayId = (isGasCoin || isMoveCall)
                         ? (result.objectId || '')
                         : (result.packageId || '')
-                    const isGasCoin = result.type === 'GAS_COIN'
 
                     return (
                         <div
@@ -144,8 +145,8 @@ export default function ResultsList({ results, clearResults, sender, network }: 
                                         >
                                             ▶
                                         </span>
-                                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${isGasCoin ? 'bg-amber-500 text-white' : 'bg-black text-white'}`}>
-                                            {isGasCoin ? '🪙 GAS COIN' : '📦 PACKAGE'}
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${isGasCoin ? 'bg-amber-500 text-white' : isMoveCall ? 'bg-purple-600 text-white' : 'bg-black text-white'}`}>
+                                            {isGasCoin ? '🪙 GAS COIN' : isMoveCall ? '⚡ MOVE CALL' : '📦 PACKAGE'}
                                         </span>
                                         <span className="font-mono text-sm font-bold text-[var(--accent)]">
                                             {displayId.slice(0, 20)}...{displayId.slice(-8)}
@@ -376,6 +377,100 @@ export default function ResultsList({ results, clearResults, sender, network }: 
                                                 {/* Step 2: Execute */}
                                                 <div className="flex items-start gap-2">
                                                     <span className="bg-amber-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                                                        2
+                                                    </span>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="font-medium">
+                                                                Execute signed tx
+                                                            </span>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    copyPublishCommand(
+                                                                        idx,
+                                                                        result.txBytesBase64 || ''
+                                                                    )
+                                                                }}
+                                                                className={`text-[10px] font-bold px-1.5 py-0.5 border border-black transition-all ${copiedCommand ===
+                                                                    `publish-${idx}`
+                                                                    ? 'bg-green-500 text-white'
+                                                                    : 'bg-white hover:bg-gray-50'
+                                                                    }`}
+                                                            >
+                                                                {copiedCommand === `publish-${idx}`
+                                                                    ? '✓'
+                                                                    : 'Copy'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* MOVE CALL MODE RESULT */}
+                                    {result.type === 'MOVE_CALL' && result.objectId && (
+                                        <div className="pt-3 space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-gray-500">
+                                                    OBJECT ID:
+                                                </span>
+                                                <span className="font-mono text-sm font-bold text-purple-600 break-all">
+                                                    {result.objectId}
+                                                </span>
+                                            </div>
+
+                                            {result.objectIndex !== undefined && (
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <span className="font-bold text-gray-500">
+                                                        INDEX:
+                                                    </span>
+                                                    <span className="font-mono">
+                                                        {result.objectIndex}
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            <div className="p-3 bg-purple-50 border border-purple-200 text-xs space-y-2">
+                                                <p className="font-bold text-gray-600">
+                                                    📝 To execute this call:
+                                                </p>
+
+                                                {/* Step 1: Sign */}
+                                                <div className="flex items-start gap-2">
+                                                    <span className="bg-purple-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                                                        1
+                                                    </span>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="font-medium">
+                                                                Sign transaction
+                                                            </span>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    copyCommand(
+                                                                        idx,
+                                                                        result.txBytesBase64 || ''
+                                                                    )
+                                                                }}
+                                                                className={`text-[10px] font-bold px-1.5 py-0.5 border border-black transition-all ${copiedCommand === `sign-${idx}`
+                                                                    ? 'bg-green-500 text-white'
+                                                                    : 'bg-white hover:bg-gray-50'
+                                                                    }`}
+                                                            >
+                                                                {copiedCommand === `sign-${idx}`
+                                                                    ? '✓'
+                                                                    : 'Copy'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Step 2: Execute */}
+                                                <div className="flex items-start gap-2">
+                                                    <span className="bg-purple-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
                                                         2
                                                     </span>
                                                     <div className="flex-1">

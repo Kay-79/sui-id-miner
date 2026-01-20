@@ -28,6 +28,23 @@ interface GasCoinMiningConfig {
     nonceOffset?: number
 }
 
+interface MoveCallMiningConfig {
+    prefix: string
+    txBytesBase64: string
+    objectIndex: number
+    threads?: number
+    nonceOffset?: number
+}
+
+interface MoveCallResult {
+    objectId: string
+    objectIndex: number
+    txDigest: string
+    txBytesBase64: string
+    attempts: number
+    gasBudgetUsed: number
+}
+
 interface AddressMiningConfig {
     prefix: string
     threads?: number
@@ -68,6 +85,7 @@ interface UseWebSocketMinerReturn {
     progress: MiningProgress | null
     packageResult: PackageResult | null
     gasCoinResult: GasCoinResult | null
+    moveCallResult: MoveCallResult | null
     addressResult: AddressResult | null
     error: string | null
     lastNonce: number // For resume functionality
@@ -77,6 +95,7 @@ interface UseWebSocketMinerReturn {
     disconnect: () => void
     startPackageMining: (config: PackageMiningConfig) => void
     startGasCoinMining: (config: GasCoinMiningConfig) => void
+    startMoveCallMining: (config: MoveCallMiningConfig) => void
     startAddressMining: (config: AddressMiningConfig) => void
     stopMining: () => void
 }
@@ -87,6 +106,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
     const [progress, setProgress] = useState<MiningProgress | null>(null)
     const [packageResult, setPackageResult] = useState<PackageResult | null>(null)
     const [gasCoinResult, setGasCoinResult] = useState<GasCoinResult | null>(null)
+    const [moveCallResult, setMoveCallResult] = useState<MoveCallResult | null>(null)
     const [addressResult, setAddressResult] = useState<AddressResult | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [lastNonce, setLastNonce] = useState(0)
@@ -139,6 +159,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
                         setIsRunning(true)
                         setPackageResult(null)
                         setGasCoinResult(null)
+                        setMoveCallResult(null)
                         setAddressResult(null)
                         setProgress({ attempts: 0, hashrate: 0 })
                         console.log('[WS] Mining started:', msg.mode, msg)
@@ -155,6 +176,18 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
                     case 'package_found':
                         setPackageResult({
                             packageId: msg.package_id,
+                            txDigest: msg.tx_digest,
+                            txBytesBase64: msg.tx_bytes_base64,
+                            attempts: msg.attempts,
+                            gasBudgetUsed: msg.gas_budget_used,
+                        })
+                        setIsRunning(false)
+                        break
+
+                    case 'move_call_found':
+                        setMoveCallResult({
+                            objectId: msg.object_id,
+                            objectIndex: msg.object_index,
                             txDigest: msg.tx_digest,
                             txBytesBase64: msg.tx_bytes_base64,
                             attempts: msg.attempts,
@@ -328,6 +361,32 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
         [lastEpoch, lastNonce]
     )
 
+    const startMoveCallMining = useCallback(
+        (config: MoveCallMiningConfig) => {
+            if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+                setError('Not connected to server')
+                return
+            }
+
+            const message = {
+                type: 'start_move_call_mining',
+                prefix: config.prefix,
+                tx_bytes_base64: config.txBytesBase64,
+                object_index: config.objectIndex,
+                threads: config.threads,
+                nonce_offset: config.nonceOffset || 0,
+            }
+
+            setPackageResult(null)
+            setGasCoinResult(null)
+            setMoveCallResult(null)
+            setAddressResult(null)
+            setError(null)
+            wsRef.current.send(JSON.stringify(message))
+        },
+        []
+    )
+
     const stopMining = useCallback(() => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ type: 'stop_mining' }))
@@ -349,6 +408,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
         progress,
         packageResult,
         gasCoinResult,
+        moveCallResult,
         addressResult,
         error,
         lastNonce,
@@ -358,6 +418,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
         disconnect,
         startPackageMining,
         startGasCoinMining,
+        startMoveCallMining,
         startAddressMining,
         stopMining,
     }

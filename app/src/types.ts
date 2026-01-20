@@ -1,8 +1,8 @@
-export type MiningMode = 'PACKAGE' | 'GAS_COIN'
+export type MiningMode = 'PACKAGE' | 'GAS_COIN' | 'MOVE_CALL'
 
 export interface FoundResult {
     // Common
-    type?: 'PACKAGE' | 'GAS_COIN'
+    type?: 'PACKAGE' | 'GAS_COIN' | 'MOVE_CALL'
     attempts: number
     timestamp: number
     txDigest?: string

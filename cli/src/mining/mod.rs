@@ -10,6 +10,6 @@ pub mod mode;
 
 pub use config::MinerConfig;
 pub use executor::{CpuExecutor, MinerExecutor};
-pub use mode::{GasCoinMode, PackageMode};
+pub use mode::{GasCoinMode, PackageMode, SingleObjectMode};
 
 

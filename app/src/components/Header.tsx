@@ -11,7 +11,7 @@ export default function Header() {
                     setStars(data.stargazers_count)
                 }
             })
-            .catch(() => {})
+            .catch(() => { })
     }, [])
 
     return (
@@ -23,7 +23,7 @@ export default function Header() {
                         Sui ID Miner
                     </h1>
                     <p className="text-lg text-gray-600 font-medium mt-2">
-                        Package ID generator on SUI
+                        Vanity ID on Sui Network
                     </p>
                 </div>
 

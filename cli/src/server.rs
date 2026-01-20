@@ -1,6 +1,6 @@
 //! WebSocket Server for Web Mining Interface
 
-use crate::mining::{CpuExecutor, GasCoinMode, MinerConfig, MinerExecutor, PackageMode};
+use crate::mining::{CpuExecutor, GasCoinMode, MinerConfig, MinerExecutor, PackageMode, SingleObjectMode};
 use crate::module_order::sort_modules_by_dependency;
 use crate::target::TargetChecker;
 
@@ -19,7 +19,7 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use sui_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress};
 
-use crate::common::{create_tx_template, create_split_tx_template, format_large_number, randomize_gas_budget};
+use crate::common::{create_tx_template, create_split_tx_template, create_template_from_bytes, format_large_number, randomize_gas_budget};
 use rand::Rng;
 use rand::rngs::OsRng;
 
@@ -51,6 +51,16 @@ pub enum ClientMessage {
         gas_object_id: String,
         gas_object_version: u64,
         gas_object_digest: String,
+        threads: Option<usize>,
+        #[serde(default)]
+        nonce_offset: u64,
+    },
+    #[serde(rename = "start_move_call_mining")]
+    StartMoveCallMining {
+        prefix: String,
+        tx_bytes_base64: String,
+        #[serde(default)]
+        object_index: u16,
         threads: Option<usize>,
         #[serde(default)]
         nonce_offset: u64,
@@ -89,6 +99,16 @@ pub enum ServerMessage {
 
     #[serde(rename = "gas_coin_found")]
     GasCoinFound {
+        object_id: String,
+        object_index: u16,
+        tx_digest: String,
+        tx_bytes_base64: String,
+        attempts: u64,
+        gas_budget_used: u64,
+    },
+
+    #[serde(rename = "move_call_found")]
+    MoveCallFound {
         object_id: String,
         object_index: u16,
         tx_digest: String,
@@ -299,6 +319,34 @@ async fn handle_connection(
 
                             if let Err(e) = result {
                                 eprintln!("Gas coin mining error: {}", e);
+                            }
+                        });
+                    }
+                    Ok(ClientMessage::StartMoveCallMining {
+                        prefix,
+                        tx_bytes_base64,
+                        object_index,
+                        threads,
+                        nonce_offset,
+                    }) => {
+                        cancel.store(false, Ordering::SeqCst);
+                        let cancel_clone = cancel.clone();
+                        let out_tx_clone = out_tx.clone();
+                        let thread_count = threads.unwrap_or_else(num_cpus::get);
+
+                        tokio::task::spawn_blocking(move || {
+                            let result = run_move_call_mining(
+                                prefix,
+                                tx_bytes_base64,
+                                object_index,
+                                thread_count,
+                                nonce_offset,
+                                cancel_clone,
+                                out_tx_clone,
+                            );
+
+                            if let Err(e) = result {
+                                eprintln!("Move Call mining error: {}", e);
                             }
                         });
                     }
@@ -583,6 +631,111 @@ fn run_gas_coin_mining(
 
     if let Some(res) = result {
         let _ = out_tx.blocking_send(ServerMessage::GasCoinFound {
+            object_id: format!("0x{}", hex::encode(res.object_id.as_ref())),
+            object_index: res.object_index,
+            tx_digest: res.tx_digest.to_string(),
+            tx_bytes_base64: general_purpose::STANDARD.encode(&res.tx_bytes),
+            attempts: res.attempts,
+            gas_budget_used: res.gas_budget_used,
+        });
+    } else {
+        let last_nonce = total_attempts.load(Ordering::Relaxed);
+        let _ = out_tx.blocking_send(ServerMessage::Stopped {
+            attempts: last_nonce,
+            last_nonce,
+        });
+    }
+
+    Ok(())
+}
+
+// =============================================================================
+// MOVE CALL MINING (VANITY ID)
+// =============================================================================
+
+fn run_move_call_mining(
+    prefix: String,
+    tx_bytes_base64: String,
+    object_index: u16,
+    threads: usize,
+    start_nonce: u64,
+    cancel: Arc<AtomicBool>,
+    out_tx: mpsc::Sender<ServerMessage>,
+) -> Result<()> {
+    // Decode base64 bytes
+    let tx_bytes = general_purpose::STANDARD
+        .decode(&tx_bytes_base64)
+        .context("Failed to decode base64 transaction bytes")?;
+
+    // 1. Create Transaction Template from generic bytes
+    // This allows mining ANY transaction (Move Calls, etc.)
+    let (tx_template, salt_offset) = create_template_from_bytes(&tx_bytes)
+        .context("Failed to create mining template from transaction bytes")?;
+
+    let target = TargetChecker::from_hex_prefix(&prefix).context("Invalid prefix")?;
+
+    println!("   🚀 Starting Move Call mining...");
+    println!("      Prefix: 0x{}", prefix);
+    println!("      Threads: {}", threads);
+    println!("      Target Index: {}", object_index);
+    println!("      Start Nonce: {}", format_large_number(start_nonce));
+    println!("      Template size: {} bytes", tx_template.len());
+
+    let _ = out_tx.blocking_send(ServerMessage::MiningStarted {
+        mode: "MoveCall".to_string(),
+        prefix: prefix.clone(),
+        difficulty: target.difficulty(),
+        estimated_attempts: target.estimated_attempts(),
+        threads,
+    });
+
+    let total_attempts = Arc::new(std::sync::atomic::AtomicU64::new(start_nonce));
+
+    // Progress Reporter
+    let progress_thread = thread::spawn({
+        let total_attempts = total_attempts.clone();
+        let cancel = cancel.clone();
+        let out_tx_progress = out_tx.clone();
+        move || {
+            let mut last_attempts = start_nonce;
+            let mut last_time = std::time::Instant::now();
+            while !cancel.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(500));
+                let current = total_attempts.load(Ordering::Relaxed);
+                
+                // Only send update if progress made
+                if current > last_attempts {
+                    let now = std::time::Instant::now();
+                    let elapsed = now.duration_since(last_time).as_secs_f64();
+                    let hashrate = if elapsed > 0.0 {
+                        (current - last_attempts) as f64 / elapsed
+                    } else {
+                        0.0
+                    };
+
+                    let _ = out_tx_progress.blocking_send(ServerMessage::Progress {
+                        attempts: current,
+                        hashrate,
+                    });
+
+                    last_attempts = current;
+                    last_time = now;
+                }
+            }
+        }
+    });
+
+    // 2. Start Mining using Generic SingleObjectMode
+    let executor = CpuExecutor::new();
+    let mode = SingleObjectMode::new(object_index); // Check specific index (e.g. 0)
+    let config = MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_nonce);
+    let result = executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
+
+    cancel.store(true, Ordering::SeqCst);
+    let _ = progress_thread.join();
+
+    if let Some(res) = result {
+        let _ = out_tx.blocking_send(ServerMessage::MoveCallFound {
             object_id: format!("0x{}", hex::encode(res.object_id.as_ref())),
             object_index: res.object_index,
             tx_digest: res.tx_digest.to_string(),
