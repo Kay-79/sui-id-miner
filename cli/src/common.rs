@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use fastcrypto::hash::{Blake2b256, HashFunction};
 use rand::Rng;
 use rand::rngs::OsRng;
 use sui_types::{
@@ -103,7 +102,7 @@ pub fn create_split_tx_template(
         .collect();
     
     // SplitCoins from gas coin (Argument::GasCoin)
-    let new_coins = ptb.command(sui_types::transaction::Command::SplitCoins(
+    let _new_coins = ptb.command(sui_types::transaction::Command::SplitCoins(
         sui_types::transaction::Argument::GasCoin,
         amounts,
     ));

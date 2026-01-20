@@ -1,45 +1,47 @@
+//! Mining executors - Backend implementations for mining
+
+use crate::mining::config::MinerConfig;
+use crate::mining::mode::{MiningMode, MiningResult};
 use crate::target::TargetChecker;
-use crate::types::MiningResult;
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::thread;
-use sui_types::base_types::ObjectID;
 
-/// CPU-based miner using native threads with thread-local buffers
-pub struct CpuMiner {
-    tx_template: Vec<u8>,
-    nonce_offset: usize,  // Offset where nonce (gas_budget) is located
-    base_gas_budget: u64, // Base gas budget value
-    target: TargetChecker,
-    threads: usize,
+/// Trait for mining execution backends
+pub trait MinerExecutor {
+    /// Execute mining with the given mode and configuration
+    fn mine<M: MiningMode>(
+        &self,
+        mode: M,
+        config: &MinerConfig,
+        target: &TargetChecker,
+        total_attempts: Arc<AtomicU64>,
+        cancel: Arc<AtomicBool>,
+    ) -> Option<MiningResult>;
 }
 
-impl CpuMiner {
-    pub fn new(
-        tx_template: Vec<u8>,
-        nonce_offset: usize,
-        target: TargetChecker,
-        threads: usize,
-    ) -> Self {
-        // Extract base gas_budget from template
-        let mut gas_bytes = [0u8; 8];
-        gas_bytes.copy_from_slice(&tx_template[nonce_offset..nonce_offset + 8]);
-        let base_gas_budget = u64::from_le_bytes(gas_bytes);
+/// CPU-based mining executor using native threads
+pub struct CpuExecutor;
 
-        Self {
-            tx_template,
-            nonce_offset,
-            base_gas_budget,
-            target,
-            threads,
-        }
+impl CpuExecutor {
+    pub fn new() -> Self {
+        Self
     }
+}
 
-    /// Start mining, returns when a match is found or cancelled
-    pub fn mine(
+impl Default for CpuExecutor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MinerExecutor for CpuExecutor {
+    fn mine<M: MiningMode>(
         &self,
-        start_nonce: u64,
+        mode: M,
+        config: &MinerConfig,
+        target: &TargetChecker,
         total_attempts: Arc<AtomicU64>,
         cancel: Arc<AtomicBool>,
     ) -> Option<MiningResult> {
@@ -47,18 +49,17 @@ impl CpuMiner {
         let result_holder: Arc<std::sync::Mutex<Option<MiningResult>>> =
             Arc::new(std::sync::Mutex::new(None));
 
-        // Each thread gets a range of nonces to work on
-        // Start from start_nonce for resume functionality
-        let nonce_counter = Arc::new(AtomicU64::new(start_nonce));
-        let initial_start_nonce = start_nonce; // Save for calculating relative attempts
-        let chunk_size = 10_000u64; // Each thread grabs 10K nonces at a time
+        let nonce_counter = Arc::new(AtomicU64::new(config.start_nonce));
+        let initial_start_nonce = config.start_nonce;
+        let chunk_size = 10_000u64;
+        let base_gas_budget = config.base_gas_budget();
 
-        let handles: Vec<_> = (0..self.threads)
+        let handles: Vec<_> = (0..config.threads)
             .map(|_| {
-                let tx_template = self.tx_template.clone();
-                let nonce_offset = self.nonce_offset;
-                let base_gas_budget = self.base_gas_budget;
-                let target = self.target.clone();
+                let tx_template = config.tx_template.clone();
+                let nonce_offset = config.nonce_offset;
+                let target = target.clone();
+                let mode = mode.clone();
                 let cancel = cancel.clone();
                 let found = found.clone();
                 let result_holder = result_holder.clone();
@@ -66,7 +67,7 @@ impl CpuMiner {
                 let total_attempts = total_attempts.clone();
 
                 thread::spawn(move || {
-                    // Thread-local buffer - only allocated ONCE per thread!
+                    // Thread-local buffer - only allocated ONCE per thread
                     let mut tx_bytes = tx_template;
 
                     while !cancel.load(Ordering::Relaxed) && !found.load(Ordering::Relaxed) {
@@ -81,19 +82,21 @@ impl CpuMiner {
                             let n = start_nonce + i;
                             let varied_gas_budget = base_gas_budget.wrapping_add(n);
 
-                            // FAST: Only modify 8 bytes in the existing buffer
+                            // Modify nonce in buffer
                             tx_bytes[nonce_offset..nonce_offset + 8]
                                 .copy_from_slice(&varied_gas_budget.to_le_bytes());
 
-                            // Parse and check
+                            // Parse transaction
                             if let Ok(tx_data) = bcs::from_bytes::<
                                 sui_types::transaction::TransactionData,
                             >(&tx_bytes)
                             {
                                 let tx_digest = tx_data.digest();
-                                let package_id = ObjectID::derive_id(tx_digest, 0);
 
-                                if target.matches(&package_id.into_bytes()) {
+                                // Use mode to check for match
+                                if let Some((object_id, object_index)) =
+                                    mode.check_match(&tx_digest, &target)
+                                {
                                     // Found!
                                     if found
                                         .compare_exchange(
@@ -104,11 +107,11 @@ impl CpuMiner {
                                         )
                                         .is_ok()
                                     {
-                                        // Calculate relative attempts (not absolute nonce)
                                         let relative_attempts =
                                             n.saturating_sub(initial_start_nonce);
                                         let result = MiningResult {
-                                            package_id,
+                                            object_id,
+                                            object_index,
                                             tx_digest,
                                             tx_bytes: tx_bytes.clone(),
                                             nonce: n,
@@ -137,5 +140,23 @@ impl CpuMiner {
         // Return result if found
         let guard = result_holder.lock().unwrap();
         guard.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cpu_executor_creation() {
+        let executor = CpuExecutor::new();
+        // Just verify it can be created
+        let _ = executor;
+    }
+
+    #[test]
+    fn test_cpu_executor_default() {
+        let executor = CpuExecutor::default();
+        let _ = executor;
     }
 }

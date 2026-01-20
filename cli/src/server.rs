@@ -1,7 +1,6 @@
 //! WebSocket Server for Web Mining Interface
 
-use crate::cpu_miner::CpuMiner;
-use crate::gas_coin_miner::GasCoinMiner;
+use crate::mining::{CpuExecutor, GasCoinMode, MinerConfig, MinerExecutor, PackageMode};
 use crate::module_order::sort_modules_by_dependency;
 use crate::target::TargetChecker;
 
@@ -434,15 +433,18 @@ fn run_package_mining(
         }
     });
 
-    let miner = CpuMiner::new(tx_template, salt_offset, target, threads);
-    let result = miner.mine(start_nonce, total_attempts.clone(), cancel.clone());
+
+    let executor = CpuExecutor::new();
+    let mode = PackageMode;
+    let config = MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_nonce);
+    let result = executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
 
     cancel.store(true, Ordering::SeqCst);
     let _ = progress_thread.join();
 
     if let Some(res) = result {
         let _ = out_tx.blocking_send(ServerMessage::PackageFound {
-            package_id: format!("0x{}", hex::encode(res.package_id.as_ref())),
+            package_id: format!("0x{}", hex::encode(res.object_id.as_ref())),
             tx_digest: res.tx_digest.to_string(),
             tx_bytes_base64: general_purpose::STANDARD.encode(&res.tx_bytes),
             attempts: res.attempts,
@@ -570,8 +572,11 @@ fn run_gas_coin_mining(
         }
     });
 
-    let miner = GasCoinMiner::new(tx_template, salt_offset, target, threads, num_outputs);
-    let result = miner.mine(start_nonce, total_attempts.clone(), cancel.clone());
+
+    let executor = CpuExecutor::new();
+    let mode = GasCoinMode::new(num_outputs);
+    let config = MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_nonce);
+    let result = executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
 
     cancel.store(true, Ordering::SeqCst);
     let _ = progress_thread.join();

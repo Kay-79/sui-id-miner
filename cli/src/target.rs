@@ -65,6 +65,7 @@ impl TargetChecker {
     }
 
     /// Get the raw prefix bytes for GPU matching
+    #[allow(dead_code)]
     pub fn prefix_bytes(&self) -> Vec<u8> {
         self.prefix_bytes.clone()
     }
@@ -96,4 +97,83 @@ mod tests {
         id[0] = 0x10; // High nibble is 1
         assert!(!checker.matches(&id));
     }
+
+    #[test]
+    fn test_difficulty_calculation() {
+        let checker1 = TargetChecker::from_hex_prefix("a").unwrap();
+        assert_eq!(checker1.difficulty(), 1);
+
+        let checker2 = TargetChecker::from_hex_prefix("abc").unwrap();
+        assert_eq!(checker2.difficulty(), 3);
+
+        let checker3 = TargetChecker::from_hex_prefix("dead").unwrap();
+        assert_eq!(checker3.difficulty(), 4);
+    }
+
+    #[test]
+    fn test_estimated_attempts() {
+        let checker1 = TargetChecker::from_hex_prefix("0").unwrap();
+        assert_eq!(checker1.estimated_attempts(), 16); // 16^1
+
+        let checker2 = TargetChecker::from_hex_prefix("00").unwrap();
+        assert_eq!(checker2.estimated_attempts(), 256); // 16^2
+
+        let checker3 = TargetChecker::from_hex_prefix("face").unwrap();
+        assert_eq!(checker3.estimated_attempts(), 65536); // 16^4
+    }
+
+    #[test]
+    fn test_longer_prefix() {
+        let checker = TargetChecker::from_hex_prefix("deadbeef").unwrap();
+        assert_eq!(checker.difficulty(), 8);
+
+        // Matching ID
+        let mut id = [0u8; 32];
+        id[0] = 0xde;
+        id[1] = 0xad;
+        id[2] = 0xbe;
+        id[3] = 0xef;
+        assert!(checker.matches(&id));
+
+        // Non-matching ID
+        id[3] = 0xee;
+        assert!(!checker.matches(&id));
+    }
+
+    #[test]
+    fn test_case_handled_properly() {
+        // Prefix should work with uppercase input
+        let checker_upper = TargetChecker::from_hex_prefix("FACE").unwrap();
+        let checker_lower = TargetChecker::from_hex_prefix("face").unwrap();
+
+        let mut id = [0u8; 32];
+        id[0] = 0xfa;
+        id[1] = 0xce;
+
+        // Both should match (hex::decode handles both)
+        assert!(checker_upper.matches(&id));
+        assert!(checker_lower.matches(&id));
+    }
+
+    #[test]
+    fn test_max_length_prefix() {
+        // Full 64 chars (32 bytes)
+        let full_prefix = "00".repeat(32);
+        let checker = TargetChecker::from_hex_prefix(&full_prefix).unwrap();
+        assert_eq!(checker.difficulty(), 64);
+    }
+
+    #[test]
+    fn test_too_long_prefix_rejected() {
+        let too_long = "0".repeat(65);
+        let result = TargetChecker::from_hex_prefix(&too_long);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_hex_rejected() {
+        let result = TargetChecker::from_hex_prefix("xyz");
+        assert!(result.is_err());
+    }
 }
+

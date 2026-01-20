@@ -1,14 +1,13 @@
 mod common;
-mod cpu_miner;
-mod gas_coin_miner;
+mod mining;
 mod module_order;
 mod progress;
 mod server;
 mod target;
-mod types;
+
 
 use crate::common::{create_tx_template, format_large_number, randomize_gas_budget};
-use crate::cpu_miner::CpuMiner;
+use crate::mining::{CpuExecutor, MinerConfig, MinerExecutor, PackageMode};
 use anyhow::{Context, Result};
 use base64::{Engine as _, engine::general_purpose};
 use clap::Parser;
@@ -239,8 +238,10 @@ async fn main() -> Result<()> {
         threads,
         format_large_number(start_epoch)
     );
-    let miner = CpuMiner::new(tx_template.clone(), salt_offset, target.clone(), threads);
-    let result = miner.mine(start_epoch, total_attempts.clone(), cancel.clone()); // Start from random epoch
+    let executor = CpuExecutor::new();
+    let mode = PackageMode;
+    let config = MinerConfig::new(tx_template.clone(), salt_offset, threads).with_start_nonce(start_epoch);
+    let result = executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
 
     // Stop progress thread
     cancel.store(true, Ordering::SeqCst);
@@ -255,7 +256,7 @@ async fn main() -> Result<()> {
         println!();
 
         // Use proper hex formatting with leading zeros
-        let id_hex = format!("0x{}", hex::encode(result.package_id.as_ref()));
+        let id_hex = format!("0x{}", hex::encode(result.object_id.as_ref()));
         println!("📦 Package ID:        {}", id_hex);
         println!("📋 Transaction Digest: {}", result.tx_digest);
         println!(
