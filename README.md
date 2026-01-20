@@ -2,8 +2,6 @@
 
 <div align="center">
 
-<!-- ![Sui ID Miner](./app/public/logo.svg) -->
-
 **High-performance Vanity Package ID Miner for Sui Blockchain**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import type { FoundResult } from '../types'
+import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
 
 interface ResultsListProps {
     results: FoundResult[]
     clearResults: () => void
     sender: string
+    network: 'mainnet' | 'testnet' | 'devnet'
 }
 
 function formatNumber(n: number): string {
@@ -14,11 +16,12 @@ function formatNumber(n: number): string {
     return n.toFixed(0)
 }
 
-export default function ResultsList({ results, clearResults, sender }: ResultsListProps) {
+export default function ResultsList({ results, clearResults, sender, network }: ResultsListProps) {
     if (results.length === 0) return null
 
     const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
     const [expandedResults, setExpandedResults] = useState<Set<number>>(new Set())
+    const [checkingStatus, setCheckingStatus] = useState<Record<number, 'checking' | 'valid' | 'invalid' | null>>({})
 
     const toggleExpand = (idx: number) => {
         setExpandedResults((prev) => {
@@ -52,6 +55,42 @@ export default function ResultsList({ results, clearResults, sender }: ResultsLi
         await navigator.clipboard.writeText(command)
         setCopiedCommand(`publish-${idx}`)
         setTimeout(() => setCopiedCommand(null), 2000)
+    }
+
+    const checkAvailability = async (idx: number, gasObjectId: string, savedVersion?: string) => {
+        if (!gasObjectId) return
+        
+        setCheckingStatus(prev => ({ ...prev, [idx]: 'checking' }))
+        
+        try {
+            const client = new SuiClient({ url: getFullnodeUrl(network) })
+            const data = await client.getObject({ id: gasObjectId })
+            
+            if (data.data) {
+                // Check if version matches (if we have saved version)
+                if (savedVersion && data.data.version !== savedVersion) {
+                    // Version changed - tx is no longer valid
+                    setCheckingStatus(prev => ({ ...prev, [idx]: 'invalid' }))
+                } else {
+                    // Same version or no saved version - still valid
+                    setCheckingStatus(prev => ({ ...prev, [idx]: 'valid' }))
+                }
+            } else {
+                setCheckingStatus(prev => ({ ...prev, [idx]: 'invalid' }))
+            }
+        } catch {
+            setCheckingStatus(prev => ({ ...prev, [idx]: 'invalid' }))
+        }
+        
+        // Only reset status after 5 seconds if valid (keep 'invalid' permanently)
+        setTimeout(() => {
+            setCheckingStatus(prev => {
+                if (prev[idx] === 'valid') {
+                    return { ...prev, [idx]: null }
+                }
+                return prev // Keep 'invalid' or 'checking' status
+            })
+        }, 5000)
     }
 
     return (
@@ -130,6 +169,42 @@ export default function ResultsList({ results, clearResults, sender }: ResultsLi
                                                     {result.packageId}
                                                 </span>
                                             </div>
+
+                                            {/* Gas Object Check */}
+                                            {result.gasObjectId && (
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <span className="font-bold text-gray-500">
+                                                        GAS OBJECT:
+                                                    </span>
+                                                    <span className="font-mono text-gray-600">
+                                                        {result.gasObjectId.slice(0, 10)}...{result.gasObjectId.slice(-6)}
+                                                    </span>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            checkAvailability(idx, result.gasObjectId || '', result.gasObjectVersion)
+                                                        }}
+                                                        disabled={checkingStatus[idx] === 'checking'}
+                                                        className={`font-bold px-2 py-0.5 border border-black transition-all ${
+                                                            checkingStatus[idx] === 'checking'
+                                                                ? 'bg-gray-300 text-gray-600'
+                                                                : checkingStatus[idx] === 'valid'
+                                                                ? 'bg-green-500 text-white'
+                                                                : checkingStatus[idx] === 'invalid'
+                                                                ? 'bg-red-500 text-white'
+                                                                : 'bg-blue-500 text-white hover:bg-blue-600'
+                                                        }`}
+                                                    >
+                                                        {checkingStatus[idx] === 'checking'
+                                                            ? '⏳'
+                                                            : checkingStatus[idx] === 'valid'
+                                                            ? '✓ Valid'
+                                                            : checkingStatus[idx] === 'invalid'
+                                                            ? '✗ Changed'
+                                                            : '🔍 Check'}
+                                                    </button>
+                                                </div>
+                                            )}
 
                                             <div className="p-3 bg-gray-100 border border-gray-300 text-xs space-y-2">
                                                 <p className="font-bold text-gray-600">

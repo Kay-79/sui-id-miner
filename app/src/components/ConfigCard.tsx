@@ -317,28 +317,17 @@ export default function ConfigCard({
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-center gap-2">
                                     <label className="brutal-btn cursor-pointer bg-green-600 text-white text-sm py-1 px-3">
-                                        📂 Bytecode Folder
+                                        🗃️ Upload Modules
                                         <input
                                             type="file"
                                             ref={fileInputRef}
-                                            onChange={handleFileChange}
-                                            className="hidden"
-                                            /* @ts-expect-error webkitdirectory is non-standard */
-                                            webkitdirectory=""
-                                            directory=""
-                                        />
-                                    </label>{' '}
-                                    <span className="text-xs text-gray-500">or</span>
-                                    <label className="brutal-btn cursor-pointer bg-gray-600 text-white text-sm py-1 px-3">
-                                        🗃️ Select .mv Files
-                                        <input
-                                            type="file"
                                             onChange={handleFileChange}
                                             className="hidden"
                                             accept=".mv"
                                             multiple
                                         />
                                     </label>
+                                    <span className="text-xs text-gray-500">(.mv files)</span>
                                 </div>
                                 <span className="text-xs font-bold text-[var(--primary)]">
                                     {modulesBase64.length > 0

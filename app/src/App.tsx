@@ -28,6 +28,7 @@ function App() {
         '0x0000000000000000000000000000000000000000000000000000000000000000'
     )
     const [gasObjectId, setGasObjectId] = useState('')
+    const [lastGasVersion, setLastGasVersion] = useState<string | null>(null)
     const [network, setNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('testnet')
     const [threadCount, setThreadCount] = useState(0) // 0 = auto (use all cores)
 
@@ -62,6 +63,8 @@ function App() {
                 packageId: wsMiner.packageResult.packageId,
                 txDigest: wsMiner.packageResult.txDigest,
                 txBytesBase64: wsMiner.packageResult.txBytesBase64,
+                gasObjectId: gasObjectId,
+                gasObjectVersion: lastGasVersion || undefined,
                 attempts: wsMiner.packageResult.attempts,
                 timestamp: Date.now(),
             }
@@ -115,6 +118,9 @@ function App() {
 
                 const gasVersion = data.data.version
                 const gasDigest = data.data.digest
+
+                // Save version for result tracking
+                setLastGasVersion(gasVersion)
 
                 showToast(`Gas object verified: v${gasVersion}`, 'success')
 
@@ -213,6 +219,7 @@ function App() {
                     results={state.foundResults}
                     clearResults={clearResults}
                     sender={sender}
+                    network={network}
                 />
 
                 <Footer />

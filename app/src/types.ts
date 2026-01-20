@@ -10,6 +10,8 @@ export interface FoundResult {
     packageId?: string
     txDigest?: string
     txBytesBase64?: string
+    gasObjectId?: string
+    gasObjectVersion?: string
 
     // Package Mode (Legacy WASM)
     package_id?: string
