@@ -17,7 +17,7 @@ import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
 
 function App() {
     // Config State
-    const [mode, _setMode] = useState<MiningMode>('PACKAGE')
+    const [mode, setMode] = useState<MiningMode>('PACKAGE')
     const [prefix, setPrefix] = useState('')
 
     // Package Mode Specific Config
@@ -32,6 +32,9 @@ function App() {
     const [lastGasVersion, setLastGasVersion] = useState<string | null>(null)
     const [network, setNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('testnet')
     const [threadCount, setThreadCount] = useState(0) // 0 = auto (use all cores)
+
+    // Gas Coin Mode: Split amounts (in MIST, 1 SUI = 1_000_000_000)
+    const [splitAmounts, setSplitAmounts] = useState<number[]>([1_000_000_000])
 
     // WebSocket Miner
     const wsMiner = useWebSocketMiner()
@@ -56,7 +59,9 @@ function App() {
     const estimatedAttempts = Math.pow(16, difficulty)
     const isValidPrefix = prefix.length > 0 && /^[0-9a-fA-F]+$/.test(prefix)
 
-    const isConfigValid = isValidPrefix && modulesBase64.length > 0 && gasObjectId
+    const isConfigValid = mode === 'PACKAGE'
+        ? isValidPrefix && modulesBase64.length > 0 && gasObjectId
+        : isValidPrefix && splitAmounts.length > 0 && gasObjectId
 
     // Track WebSocket results -> add to foundResults
     // This is a valid pattern: syncing external WebSocket state with React state
@@ -79,6 +84,28 @@ function App() {
             }))
         }
     }, [wsMiner.packageResult])
+
+    // Track Gas Coin results -> add to foundResults
+    useEffect(() => {
+        if (wsMiner.gasCoinResult) {
+            const result: FoundResult = {
+                type: 'GAS_COIN',
+                objectId: wsMiner.gasCoinResult.objectId,
+                objectIndex: wsMiner.gasCoinResult.objectIndex,
+                txDigest: wsMiner.gasCoinResult.txDigest,
+                txBytesBase64: wsMiner.gasCoinResult.txBytesBase64,
+                gasObjectId: gasObjectId,
+                gasObjectVersion: lastGasVersion || undefined,
+                splitAmounts: splitAmounts,
+                attempts: wsMiner.gasCoinResult.attempts,
+                timestamp: Date.now(),
+            }
+            setState((prev) => ({
+                ...prev,
+                foundResults: [...prev.foundResults, result],
+            }))
+        }
+    }, [wsMiner.gasCoinResult])
 
     // Show toast on WS error
     useEffect(() => {
@@ -152,15 +179,66 @@ function App() {
             }
             return
         }
+
+        if (mode === 'GAS_COIN') {
+            // Check if sender is zero address
+            if (/^0x0+$/.test(sender)) {
+                showToast('Please set Sender Address!', 'error')
+                return
+            }
+            if (splitAmounts.length === 0 || splitAmounts.every(a => a <= 0)) {
+                showToast('Please set split amounts!', 'error')
+                return
+            }
+            if (!gasObjectId) {
+                showToast('Please enter Gas Object ID!', 'error')
+                return
+            }
+
+            showToast('Fetching gas object details...', 'info')
+
+            try {
+                const client = new SuiClient({ url: getFullnodeUrl(network) })
+                const data = await client.getObject({ id: gasObjectId })
+
+                if (!data.data) {
+                    showToast('Gas object not found!', 'error')
+                    return
+                }
+
+                const gasVersion = data.data.version
+                const gasDigest = data.data.digest
+
+                setLastGasVersion(gasVersion)
+                showToast(`Gas object verified: v${gasVersion}`, 'success')
+
+                wsMiner.startGasCoinMining({
+                    prefix,
+                    splitAmounts: splitAmounts.filter(a => a > 0),
+                    sender,
+                    gasBudget: baseGasBudget,
+                    gasPrice: 1000,
+                    gasObjectId,
+                    gasObjectVersion: gasVersion,
+                    gasObjectDigest: gasDigest,
+                    threads: threadCount > 0 ? threadCount : undefined,
+                })
+            } catch (e: any) {
+                showToast('Failed to fetch gas object: ' + e.message, 'error')
+            }
+            return
+        }
     }, [
         isValidPrefix,
         mode,
         prefix,
         modulesBase64,
+        splitAmounts,
         sender,
         baseGasBudget,
         gasObjectId,
         network,
+        threadCount,
         wsMiner,
         showToast,
     ])
@@ -194,6 +272,7 @@ function App() {
 
                 <ConfigCard
                     mode={mode}
+                    setMode={setMode}
                     prefix={prefix}
                     setPrefix={setPrefix}
                     baseGasBudget={baseGasBudget}
@@ -212,6 +291,8 @@ function App() {
                     setNetwork={setNetwork}
                     threadCount={threadCount}
                     setThreadCount={setThreadCount}
+                    splitAmounts={splitAmounts}
+                    setSplitAmounts={setSplitAmounts}
                 />
 
                 <MiningControl

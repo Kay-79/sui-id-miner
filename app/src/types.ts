@@ -1,19 +1,24 @@
-export type MiningMode = 'PACKAGE'
+export type MiningMode = 'PACKAGE' | 'GAS_COIN'
 
 export interface FoundResult {
     // Common
-    type?: 'PACKAGE'
+    type?: 'PACKAGE' | 'GAS_COIN'
     attempts: number
     timestamp: number
-
-    // Package Mode
-    packageId?: string
     txDigest?: string
     txBytesBase64?: string
     gasObjectId?: string
     gasObjectVersion?: string
 
-    // Package Mode (Legacy WASM)
+    // Package Mode
+    packageId?: string
+
+    // Gas Coin Mode
+    objectId?: string
+    objectIndex?: number
+    splitAmounts?: number[]
+
+    // Legacy fields (WASM)
     package_id?: string
     tx_digest?: string
     tx_bytes_hex?: string
@@ -28,3 +33,4 @@ export interface MiningState {
     startTime: number | null
     foundResults: FoundResult[]
 }
+

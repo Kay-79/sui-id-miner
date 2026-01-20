@@ -1,5 +1,6 @@
 mod common;
 mod cpu_miner;
+mod gas_coin_miner;
 mod module_order;
 mod progress;
 mod server;

@@ -35,7 +35,7 @@ export default function MiningControl({
                     {isRunning ? (
                         <>
                             <div className="w-8 h-8 border-4 border-t-transparent rounded-full spin border-[var(--accent)]"></div>
-                            <span className="text-xl font-bold">Mining Package...</span>
+                            <span className="text-xl font-bold">Mining...</span>
                         </>
                     ) : (
                         <span className="text-xl font-bold">

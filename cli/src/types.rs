@@ -10,3 +10,15 @@ pub struct MiningResult {
     pub gas_budget_used: u64,
     pub attempts: u64,
 }
+
+/// Result when a matching Gas Coin Object ID is found
+#[derive(Debug, Clone)]
+pub struct GasCoinMiningResult {
+    pub object_id: ObjectID,
+    pub object_index: u16,
+    pub tx_digest: TransactionDigest,
+    pub tx_bytes: Vec<u8>,
+    pub nonce: u64,
+    pub gas_budget_used: u64,
+    pub attempts: u64,
+}

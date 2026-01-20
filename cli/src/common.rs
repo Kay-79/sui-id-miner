@@ -83,6 +83,75 @@ pub fn create_tx_template(
     Ok((tx_bytes, nonce_offset))
 }
 
+/// Create a SplitCoins transaction template for mining Gas Coin IDs
+/// The transaction splits the gas coin into multiple new coins with specified amounts
+/// Returns (tx_bytes, nonce_offset, num_outputs)
+pub fn create_split_tx_template(
+    sender: SuiAddress,
+    split_amounts: Vec<u64>,
+    gas_budget: u64,
+    gas_price: u64,
+    gas_payment: (ObjectID, SequenceNumber, ObjectDigest),
+) -> Result<(Vec<u8>, usize, u16)> {
+    let mut ptb = ProgrammableTransactionBuilder::new();
+
+    // Split gas coin into multiple coins with specified amounts
+    // Each amount creates a new coin object
+    let amounts: Vec<_> = split_amounts
+        .iter()
+        .map(|a| ptb.pure(*a).unwrap())
+        .collect();
+    
+    // SplitCoins from gas coin (Argument::GasCoin)
+    let new_coins = ptb.command(sui_types::transaction::Command::SplitCoins(
+        sui_types::transaction::Argument::GasCoin,
+        amounts,
+    ));
+
+    // Transfer all new coins to sender
+    // new_coins is a vector result, we need to extract each one
+    for i in 0..split_amounts.len() {
+        let coin = sui_types::transaction::Argument::NestedResult(0, i as u16);
+        ptb.transfer_arg(sender, coin);
+    }
+
+    let pt = ptb.finish();
+
+    // Gas Data
+    let gas_data = GasData {
+        payment: vec![gas_payment],
+        owner: sender,
+        price: gas_price,
+        budget: gas_budget,
+    };
+
+    // Placeholder Epoch for finding offset (same as package mining)
+    let placeholder_epoch = 0xAAAAAAAAAAAAAAAAu64;
+    let expiration = TransactionExpiration::Epoch(placeholder_epoch);
+
+    let kind = TransactionKind::ProgrammableTransaction(pt);
+
+    let tx_data = TransactionData::V1(TransactionDataV1 {
+        kind,
+        sender,
+        gas_data,
+        expiration,
+    });
+
+    // Serialize
+    let tx_bytes = bcs::to_bytes(&tx_data)?;
+
+    // Find the epoch offset
+    let placeholder_bytes = placeholder_epoch.to_le_bytes();
+    let nonce_offset = find_pattern(&tx_bytes, &placeholder_bytes)
+        .context("Could not find expiration epoch placeholder in SplitCoins transaction bytes")?;
+
+    // Number of new coins created = number of split amounts
+    let num_outputs = split_amounts.len() as u16;
+
+    Ok((tx_bytes, nonce_offset, num_outputs))
+}
+
 fn find_pattern(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
         .windows(needle.len())

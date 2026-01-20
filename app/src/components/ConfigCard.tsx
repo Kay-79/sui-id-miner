@@ -4,6 +4,7 @@ import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
 
 interface ConfigCardProps {
     mode: MiningMode
+    setMode: (mode: MiningMode) => void
     prefix: string
     setPrefix: (prefix: string) => void
     baseGasBudget: number
@@ -25,6 +26,9 @@ interface ConfigCardProps {
     // Thread count
     threadCount: number
     setThreadCount: (n: number) => void
+    // Gas Coin mode
+    splitAmounts: number[]
+    setSplitAmounts: (amounts: number[]) => void
 }
 
 function formatNumber(n: number): string {
@@ -36,6 +40,7 @@ function formatNumber(n: number): string {
 
 export default function ConfigCard({
     mode,
+    setMode,
     prefix,
     setPrefix,
     baseGasBudget,
@@ -54,6 +59,8 @@ export default function ConfigCard({
     setNetwork,
     threadCount,
     setThreadCount,
+    splitAmounts,
+    setSplitAmounts,
 }: ConfigCardProps) {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [statusMsg, setStatusMsg] = useState('')
@@ -190,8 +197,25 @@ export default function ConfigCard({
         <div className="brutal-card p-6">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="heading-lg flex items-center gap-2">
-                    Package Config
+                    {mode === 'PACKAGE' ? '📦 Package Config' : '🪙 Gas Coin Config'}
                 </h2>
+                {/* Mode Switcher */}
+                <div className="flex gap-1">
+                    {(['PACKAGE', 'GAS_COIN'] as const).map((m) => (
+                        <button
+                            key={m}
+                            onClick={() => setMode(m)}
+                            disabled={isRunning}
+                            className={`px-3 py-1 text-xs font-bold uppercase border-2 border-black transition-all
+                                ${mode === m
+                                    ? 'bg-black text-white'
+                                    : 'bg-white text-black hover:bg-gray-100'}
+                                ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {m === 'PACKAGE' ? '📦 Package' : '🪙 Gas Coin'}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div className="grid gap-6">
@@ -337,6 +361,123 @@ export default function ConfigCard({
                             </div>
                             {statusMsg && <p className="text-xs mt-2 font-medium">{statusMsg}</p>}
                         </div>
+                    </div>
+                )}
+
+                {/* Gas Coin Mode Config */}
+                {mode === 'GAS_COIN' && (
+                    <div className="space-y-4 p-4 bg-amber-50 border-2 border-dashed border-amber-300">
+                        {/* Sender */}
+                        <div>
+                            <label className="block text-xs font-bold uppercase mb-1">
+                                Sender Address
+                            </label>
+                            <input
+                                type="text"
+                                value={sender}
+                                onChange={(e) => setSender(e.target.value)}
+                                className="brutal-input text-xs font-mono py-1"
+                                placeholder="0x..."
+                                maxLength={66}
+                            />
+                        </div>
+
+                        {/* Split Amount */}
+                        <div>
+                            <label className="block text-xs font-bold uppercase mb-1">
+                                Split Amount (SUI)
+                            </label>
+                            <div className="flex gap-2 items-center">
+                                <input
+                                    type="number"
+                                    step="0.001"
+                                    min="0.001"
+                                    value={splitAmounts[0] / 1_000_000_000}
+                                    onChange={(e) => {
+                                        const sui = parseFloat(e.target.value) || 0
+                                        const mist = Math.floor(sui * 1_000_000_000)
+                                        setSplitAmounts([mist])
+                                    }}
+                                    className="brutal-input font-mono text-sm w-32"
+                                    disabled={isRunning}
+                                />
+                                <span className="text-xs text-gray-500">
+                                    = {splitAmounts[0].toLocaleString()} MIST
+                                </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Amount of SUI to split into a new coin with vanity ID
+                            </p>
+                        </div>
+
+                        {/* Gas Budget & Thread Count */}
+                        <div className="flex gap-4">
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold uppercase mb-1">
+                                    Gas Budget
+                                </label>
+                                <input
+                                    type="number"
+                                    value={baseGasBudget}
+                                    onChange={(e) =>
+                                        setBaseGasBudget(parseInt(e.target.value) || 0)
+                                    }
+                                    className="brutal-input font-mono text-sm"
+                                />
+                            </div>
+                            <div className="w-40">
+                                <label className="block text-xs font-bold uppercase mb-1">
+                                    CPU Threads
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={64}
+                                        value={threadCount || ''}
+                                        onChange={(e) =>
+                                            setThreadCount(
+                                                Math.max(0, parseInt(e.target.value) || 0)
+                                            )
+                                        }
+                                        className="brutal-input font-mono text-sm py-1 w-20"
+                                        disabled={isRunning}
+                                        placeholder="Auto"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Gas Object */}
+                        <div className="p-3 bg-white border border-amber-200 rounded">
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 className="text-xs font-bold uppercase">Gas Object (Source Coin)</h4>
+                                <div className="flex gap-1">
+                                    {(['mainnet', 'testnet', 'devnet'] as const).map((net) => (
+                                        <button
+                                            key={net}
+                                            onClick={() => setNetwork(net)}
+                                            className={`px-2 py-0.5 text-[10px] font-bold uppercase border border-black ${network === net ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-100'}`}
+                                        >
+                                            {net}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <input
+                                    type="text"
+                                    value={gasObjectId}
+                                    onChange={(e) => setGasObjectId(e.target.value)}
+                                    className="brutal-input text-xs font-mono py-1"
+                                    placeholder="Object ID (0x...) - fetched automatically"
+                                    maxLength={66}
+                                />
+                            </div>
+                        </div>
+
+                        {statusMsg && <p className="text-xs mt-2 font-medium">{statusMsg}</p>}
                     </div>
                 )}
             </div>
