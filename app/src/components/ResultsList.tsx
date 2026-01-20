@@ -59,13 +59,13 @@ export default function ResultsList({ results, clearResults, sender, network }: 
 
     const checkAvailability = async (idx: number, gasObjectId: string, savedVersion?: string) => {
         if (!gasObjectId) return
-        
+
         setCheckingStatus(prev => ({ ...prev, [idx]: 'checking' }))
-        
+
         try {
             const client = new SuiClient({ url: getFullnodeUrl(network) })
             const data = await client.getObject({ id: gasObjectId })
-            
+
             if (data.data) {
                 // Check if version matches (if we have saved version)
                 if (savedVersion && data.data.version !== savedVersion) {
@@ -81,7 +81,7 @@ export default function ResultsList({ results, clearResults, sender, network }: 
         } catch {
             setCheckingStatus(prev => ({ ...prev, [idx]: 'invalid' }))
         }
-        
+
         // Only reset status after 5 seconds if valid (keep 'invalid' permanently)
         setTimeout(() => {
             setCheckingStatus(prev => {
@@ -185,23 +185,22 @@ export default function ResultsList({ results, clearResults, sender, network }: 
                                                             checkAvailability(idx, result.gasObjectId || '', result.gasObjectVersion)
                                                         }}
                                                         disabled={checkingStatus[idx] === 'checking'}
-                                                        className={`font-bold px-2 py-0.5 border border-black transition-all ${
-                                                            checkingStatus[idx] === 'checking'
+                                                        className={`font-bold px-2 py-0.5 border border-black transition-all ${checkingStatus[idx] === 'checking'
                                                                 ? 'bg-gray-300 text-gray-600'
                                                                 : checkingStatus[idx] === 'valid'
-                                                                ? 'bg-green-500 text-white'
-                                                                : checkingStatus[idx] === 'invalid'
-                                                                ? 'bg-red-500 text-white'
-                                                                : 'bg-blue-500 text-white hover:bg-blue-600'
-                                                        }`}
+                                                                    ? 'bg-green-500 text-white'
+                                                                    : checkingStatus[idx] === 'invalid'
+                                                                        ? 'bg-red-500 text-white'
+                                                                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                                                            }`}
                                                     >
                                                         {checkingStatus[idx] === 'checking'
                                                             ? '⏳'
                                                             : checkingStatus[idx] === 'valid'
-                                                            ? '✓ Valid'
-                                                            : checkingStatus[idx] === 'invalid'
-                                                            ? '✗ Changed'
-                                                            : '🔍 Check'}
+                                                                ? '✓ Valid'
+                                                                : checkingStatus[idx] === 'invalid'
+                                                                    ? '✗ Changed or published'
+                                                                    : '🔍 Check'}
                                                     </button>
                                                 </div>
                                             )}
@@ -229,11 +228,10 @@ export default function ResultsList({ results, clearResults, sender, network }: 
                                                                         result.txBytesBase64 || ''
                                                                     )
                                                                 }}
-                                                                className={`text-[10px] font-bold px-1.5 py-0.5 border border-black transition-all ${
-                                                                    copiedCommand === `sign-${idx}`
+                                                                className={`text-[10px] font-bold px-1.5 py-0.5 border border-black transition-all ${copiedCommand === `sign-${idx}`
                                                                         ? 'bg-green-500 text-white'
                                                                         : 'bg-white hover:bg-gray-50'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 {copiedCommand === `sign-${idx}`
                                                                     ? '✓'
@@ -261,12 +259,11 @@ export default function ResultsList({ results, clearResults, sender, network }: 
                                                                         result.txBytesBase64 || ''
                                                                     )
                                                                 }}
-                                                                className={`text-[10px] font-bold px-1.5 py-0.5 border border-black transition-all ${
-                                                                    copiedCommand ===
-                                                                    `publish-${idx}`
+                                                                className={`text-[10px] font-bold px-1.5 py-0.5 border border-black transition-all ${copiedCommand ===
+                                                                        `publish-${idx}`
                                                                         ? 'bg-green-500 text-white'
                                                                         : 'bg-white hover:bg-gray-50'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 {copiedCommand === `publish-${idx}`
                                                                     ? '✓'

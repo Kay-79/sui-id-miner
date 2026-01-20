@@ -84,7 +84,7 @@ export default function MiningControl({
                             Probable Progress
                         </div>
                         <div className="text-xl font-black" style={{ color: 'var(--accent)' }}>
-                            {progress >= 100 ? '99.99% 😅' : `${progress.toFixed(1)}%`}
+                            {progress.toFixed(2)}%
                         </div>
                     </div>
                 </div>

@@ -10,6 +10,7 @@ import ConfigCard from './components/ConfigCard'
 import MiningControl from './components/MiningControl'
 import ResultsList from './components/ResultsList'
 import { useWebSocketMiner } from './hooks/useWebSocketMiner'
+import { useSmoothStats } from './hooks/useSmoothStats'
 import { useToast } from './hooks/useToast'
 import { ToastContainer } from './components/Toast'
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
@@ -34,6 +35,9 @@ function App() {
 
     // WebSocket Miner
     const wsMiner = useWebSocketMiner()
+
+    // Smooth Stats
+    const smoothAttempts = useSmoothStats(wsMiner.progress, wsMiner.isRunning)
 
     // Toast
     const { toasts, showToast, removeToast } = useToast()
@@ -170,9 +174,13 @@ function App() {
     }, [])
 
     // Compute progress
-    const attempts = wsMiner.progress?.attempts || 0
     const hashrate = wsMiner.progress?.hashrate || 0
-    const progress = Math.min((attempts / estimatedAttempts) * 100, 100)
+
+    // Probability formula: 1 - e^(-attempts/difficulty)
+    // We use exponential decay for accurate probability
+    const difficultySpace = Math.pow(16, difficulty)
+    const probability = 1 - Math.exp(-smoothAttempts / difficultySpace)
+    const progressPercent = probability * 100
 
     return (
         <div className="min-h-screen p-4 md:p-8 bg-[var(--light)]">
@@ -214,8 +222,8 @@ function App() {
                     startMining={startMining}
                     stopMining={stopMining}
                     hashrate={hashrate}
-                    attempts={attempts}
-                    progress={progress}
+                    attempts={smoothAttempts}
+                    progress={progressPercent}
                 />
 
                 <ResultsList

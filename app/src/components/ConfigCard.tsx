@@ -190,7 +190,7 @@ export default function ConfigCard({
         <div className="brutal-card p-6">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="heading-lg flex items-center gap-2">
-                     Package Config
+                    Package Config
                 </h2>
             </div>
 
@@ -209,7 +209,7 @@ export default function ConfigCard({
                                 setPrefix(e.target.value.replace(/[^0-9a-fA-F]/g, '').toLowerCase())
                             }
                             placeholder="e.g. face, 7979, 12345"
-                            className={`brutal-input flex-1 uppercase font-mono text-lg ${!isValidPrefix && prefix ? 'border-[var(--error)]' : ''}`}
+                            className={`brutal-input flex-1 font-mono text-lg ${!isValidPrefix && prefix ? 'border-[var(--error)]' : ''}`}
                             disabled={isRunning}
                             maxLength={64}
                         />

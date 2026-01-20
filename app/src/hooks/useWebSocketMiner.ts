@@ -35,7 +35,7 @@ interface AddressResult {
     attempts: number
 }
 
-interface MiningProgress {
+export interface MiningProgress {
     attempts: number
     hashrate: number
 }
