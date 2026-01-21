@@ -41,6 +41,15 @@ export default function Header({ showDocs, setShowDocs }: HeaderProps) {
                     </button>
 
                     <a
+                        href="https://youtu.be/V0QsWS7ZWbw"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-secondary text-sm px-4 py-2 flex items-center"
+                    >
+                        🎥 Watch Demo
+                    </a>
+
+                    <a
                         href="https://github.com/Kay-79/sui-id-miner"
                         target="_blank"
                         rel="noopener noreferrer"
