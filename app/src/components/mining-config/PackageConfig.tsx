@@ -34,7 +34,7 @@ export default function PackageConfig({
 }: PackageConfigProps) {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [fileStatusMsg, setFileStatusMsg] = useState('')
-    
+
     // Use the hook for gas coin logic
     const { statusMsg: gasStatusMsg } = useBestGasCoin({
         sender,
@@ -103,6 +103,19 @@ export default function PackageConfig({
         }
     }
 
+    const handleSenderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value
+        // Allow empty
+        if (val === '') {
+            setSender(val)
+            return
+        }
+        // Strict hex validation: 0, 0x, or 0x[hex]
+        if (/^(0|0x|0x[0-9a-fA-F]*)$/.test(val)) {
+            setSender(val)
+        }
+    }
+
     return (
         <div className="space-y-4 p-4 bg-gray-50 border-2 border-dashed border-gray-300">
             {/* Sender */}
@@ -113,7 +126,7 @@ export default function PackageConfig({
                 <input
                     type="text"
                     value={sender}
-                    onChange={(e) => setSender(e.target.value)}
+                    onChange={handleSenderChange}
                     className="brutal-input text-xs font-mono py-1"
                     placeholder="0x..."
                     maxLength={66}

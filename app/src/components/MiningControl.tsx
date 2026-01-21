@@ -35,18 +35,18 @@ export default function MiningControl({
                     {isRunning ? (
                         <>
                             <div className="w-8 h-8 border-4 border-t-transparent rounded-full spin border-[var(--accent)]"></div>
-                            <span className="text-xl font-bold">Mining...</span>
+                            <span className="text-xl font-bold">Generating...</span>
                         </>
                     ) : (
                         <span className="text-xl font-bold">
-                            {isConnected ? 'Ready to mine' : '⚠️ Not Connected'}
+                            {isConnected ? 'Ready to generate' : '⚠️ Not Connected'}
                         </span>
                     )}
                 </div>
 
                 {isRunning ? (
                     <button onClick={stopMining} className="brutal-btn brutal-btn-stop">
-                        ⏹️ Stop Mining
+                        ⏹️ Stop
                     </button>
                 ) : !isConnected ? (
                     <button
@@ -61,7 +61,7 @@ export default function MiningControl({
                         className="brutal-btn"
                         style={{ backgroundColor: 'var(--accent)' }}
                     >
-                        ⚡ Start Mining
+                        ⚡ Start Generation
                     </button>
                 )}
             </div>

@@ -5,6 +5,7 @@ import './index.css'
 import type { MiningMode, MiningState, FoundResult } from './types'
 import Header from './components/Header'
 import Footer from './components/Footer'
+import Docs from './components/Docs'
 // import ModeSwitcher from "./components/ModeSwitcher";
 import ConfigCard from './components/ConfigCard'
 import MiningControl from './components/MiningControl'
@@ -18,6 +19,9 @@ import { Transaction } from '@mysten/sui/transactions'
 import { toBase64 } from '@mysten/sui/utils'
 
 function App() {
+    // UI State
+    const [showDocs, setShowDocs] = useState(false)
+
     // Config State
     const [mode, setMode] = useState<MiningMode>('PACKAGE')
     const [prefix, setPrefix] = useState('')
@@ -354,64 +358,67 @@ function App() {
     return (
         <div className="min-h-screen p-4 md:p-8 bg-[var(--light)]">
             <ToastContainer toasts={toasts} removeToast={removeToast} />
-            <Header />
+            <Header showDocs={showDocs} setShowDocs={setShowDocs} />
 
             <div className="max-w-4xl mx-auto grid gap-6">
 
+                {showDocs ? (
+                    <Docs />
+                ) : (
+                    <>
+                        <ConfigCard
+                            mode={mode}
+                            setMode={setMode}
+                            prefix={prefix}
+                            setPrefix={setPrefix}
+                            baseGasBudget={baseGasBudget}
+                            setBaseGasBudget={setBaseGasBudget}
+                            isRunning={wsMiner.isRunning}
+                            difficulty={difficulty}
+                            estimatedAttempts={estimatedAttempts}
+                            isValidPrefix={isValidPrefix}
+                            modulesBase64={modulesBase64}
+                            setModulesBase64={setModulesBase64}
+                            sender={sender}
+                            setSender={setSender}
+                            gasObjectId={gasObjectId}
+                            setGasObjectId={setGasObjectId}
+                            network={network}
+                            setNetwork={setNetwork}
+                            threadCount={threadCount}
+                            setThreadCount={setThreadCount}
+                            splitAmounts={splitAmounts}
+                            setSplitAmounts={setSplitAmounts}
+                            targetIndex={targetIndex}
+                            setTargetIndex={setTargetIndex}
+                            mcTarget={mcTarget}
+                            setMcTarget={setMcTarget}
+                            mcTypeArgs={mcTypeArgs}
+                            setMcTypeArgs={setMcTypeArgs}
+                            mcArgs={mcArgs}
+                            setMcArgs={setMcArgs}
+                        />
 
-                {/* <ModeSwitcher mode={mode} isRunning={wsMiner.isRunning} setMode={setMode} /> */}
+                        <MiningControl
+                            isRunning={wsMiner.isRunning}
+                            isConfigValid={!!(isConfigValid && wsMiner.isConnected)}
+                            isConnected={wsMiner.isConnected}
+                            onConnect={() => wsMiner.connect()}
+                            startMining={startMining}
+                            stopMining={stopMining}
+                            hashrate={hashrate}
+                            attempts={smoothAttempts}
+                            progress={progressPercent}
+                        />
 
-                <ConfigCard
-                    mode={mode}
-                    setMode={setMode}
-                    prefix={prefix}
-                    setPrefix={setPrefix}
-                    baseGasBudget={baseGasBudget}
-                    setBaseGasBudget={setBaseGasBudget}
-                    isRunning={wsMiner.isRunning}
-                    difficulty={difficulty}
-                    estimatedAttempts={estimatedAttempts}
-                    isValidPrefix={isValidPrefix}
-                    modulesBase64={modulesBase64}
-                    setModulesBase64={setModulesBase64}
-                    sender={sender}
-                    setSender={setSender}
-                    gasObjectId={gasObjectId}
-                    setGasObjectId={setGasObjectId}
-                    network={network}
-                    setNetwork={setNetwork}
-                    threadCount={threadCount}
-                    setThreadCount={setThreadCount}
-                    splitAmounts={splitAmounts}
-                    setSplitAmounts={setSplitAmounts}
-                    targetIndex={targetIndex}
-                    setTargetIndex={setTargetIndex}
-                    mcTarget={mcTarget}
-                    setMcTarget={setMcTarget}
-                    mcTypeArgs={mcTypeArgs}
-                    setMcTypeArgs={setMcTypeArgs}
-                    mcArgs={mcArgs}
-                    setMcArgs={setMcArgs}
-                />
-
-                <MiningControl
-                    isRunning={wsMiner.isRunning}
-                    isConfigValid={!!(isConfigValid && wsMiner.isConnected)}
-                    isConnected={wsMiner.isConnected}
-                    onConnect={() => wsMiner.connect()}
-                    startMining={startMining}
-                    stopMining={stopMining}
-                    hashrate={hashrate}
-                    attempts={smoothAttempts}
-                    progress={progressPercent}
-                />
-
-                <ResultsList
-                    results={state.foundResults}
-                    clearResults={clearResults}
-                    sender={sender}
-                    network={network}
-                />
+                        <ResultsList
+                            results={state.foundResults}
+                            clearResults={clearResults}
+                            sender={sender}
+                            network={network}
+                        />
+                    </>
+                )}
 
                 <Footer />
             </div>

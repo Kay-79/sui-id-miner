@@ -37,6 +37,17 @@ export default function GasCoinConfig({
         setGasObjectId
     })
 
+    const handleSenderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value
+        if (val === '') {
+            setSender(val)
+            return
+        }
+        if (/^(0|0x|0x[0-9a-fA-F]*)$/.test(val)) {
+            setSender(val)
+        }
+    }
+
     return (
         <div className="space-y-4 p-4 bg-amber-50 border-2 border-dashed border-amber-300">
             {/* Sender */}
@@ -47,7 +58,7 @@ export default function GasCoinConfig({
                 <input
                     type="text"
                     value={sender}
-                    onChange={(e) => setSender(e.target.value)}
+                    onChange={handleSenderChange}
                     className="brutal-input text-xs font-mono py-1"
                     placeholder="0x..."
                     maxLength={66}

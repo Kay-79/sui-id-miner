@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import type { MiningMode } from '../types'
 import CommonConfig from './mining-config/CommonConfig'
 import PackageConfig from './mining-config/PackageConfig'

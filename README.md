@@ -1,155 +1,60 @@
-# 🚀 Sui Package ID Miner
+# Sui Vanity ID
 
-<div align="center">
+**A high-performance CPU miner for finding various vanity Object IDs on the Sui blockchain.**
 
-**High-performance Vanity Package ID Miner for Sui Blockchain**
+This project allows you to mine:
+1.  **Package IDs**: Vanity addresses for your Move packages (e.g., `0xcafe...`).
+2.  **Gas Coin IDs**: Split gas coins with specific IDs.
+3.  **Move Call IDs**: Mine specific Object IDs resulting from Move calls (e.g., `sui::coin::create_currency` results).
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/Rust-1.92%2B-orange.svg)](https://www.rust-lang.org/)
-[![Sui](https://img.shields.io/badge/Sui-Blockchain-blue.svg)](https://sui.io/)
+## 📚 Documentation
 
-[📖 CLI Documentation](./cli/README.md) • [🌐 Web UI Documentation](./app/README.md)
+**👉 [read the full User Guide (GUIDE.md)](GUIDE.md)** for detailed configuration and usage instructions.
 
-</div>
+## Features
 
----
-
-## 🎯 What is Sui Package ID Miner?
-
-**Sui Package ID Miner** is the ultimate tool for generating **vanity Package IDs** when deploying Move smart contracts on the Sui blockchain. Create memorable, branded, or personalized package addresses like:
-
-- `0x0000...` (leading zeros)
-- `0xface...` (readable words)
-- `0x1234...` (custom numbers)
-- `0xcafe...` (branded prefixes)
-
-### 🔥 Key Features
-
-| Feature | Description |
-|---------|-------------|
-| ⚡ **Blazing Fast** | Multi-threaded CPU mining with ~1M+ hashes/sec |
-| 🎨 **Custom Package IDs** | Choose your own prefix for Move package deployments |
-| 🌐 **Web Interface** | Beautiful Neo-Brutalism UI for easy mining |
-| 🖥️ **CLI Tool** | Powerful command-line interface for automation |
+-   **Multi-Mode Mining**: Supports Package ID, Gas Coin ID, and Generic Move Call ID mining.
+-   **High Performance**: Multi-threaded CPU mining utilizing all available cores.
+-   **100% On-Chain Verified**: Uses official `sui-types` logic to ensure accuracy.
+-   **Web Interface**: Includes a Neo-Brutalism styled web UI for easy interaction.
+-   **CLI Support**: Full command-line support for automation and headless operation.
 
 ---
 
-## 📦 Components
+## 🚀 Quick Start
 
-| Component | Description |
-|-----------|-------------|
-| **[CLI Miner](./cli/)** | High-performance Rust-based CPU miner |
-| **[Web UI](./app/)** | Modern React frontend with Neo-Brutalism design |
+### 1. CLI Usage
+Build the tool and check the help menu:
 
-## 🏃 Quick Start
-
-### Option 1: CLI Only (For Developers)
-
-```bash
-# Clone the repository
-git clone https://github.com/Kay-79/sui-id-miner.git
-cd sui-id-miner/cli
-
-# Build and run
-cargo run --release -- \
-  --prefix 0000 \
-  --sender <YOUR_ADDRESS> \
-  --gas-object <GAS_COIN_ID>
-```
-
-### Option 2: Web UI + Server (Recommended)
-
-**Terminal 1 - Start Mining Server:**
 ```bash
 cd cli
-cargo run --release -- --server
+cargo build --release
+./target/release/sui-vanity-id --help
 ```
 
-**Terminal 2 - Start Web App:**
+See [GUIDE.md](GUIDE.md) for command examples.
+
+### 2. Web Interface
+Start the backend server and frontend app:
+
 ```bash
-cd app
-npm install
-npm run dev
+# Terminal 1 (Server)
+cd cli && cargo run --release -- --server
+
+# Terminal 2 (Frontend)
+cd app && npm install && npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open [http://localhost:5173](http://localhost:5173).
 
 ---
 
-## ⚡ How It Works
+## Architecture
 
-Sui Package ID Miner uses a sophisticated brute-force algorithm:
+The project consists of two main parts:
+-   **`cli/`**: Rust-based high-performance miner and WebSocket server.
+-   **`app/`**: React/TypeScript frontend for user-friendly interaction.
 
-1. **Template Creation** - Creates a "Publish" transaction template from Move bytecode
-2. **Nonce Variation** - Varies transaction parameters to change the digest
-3. **Hash Computation** - `TransactionDigest = Blake2b256(Intent || BCS(TransactionData))`
-4. **ID Derivation** - `PackageID = Sha3_256(TransactionDigest || ObjectIndex)`
-5. **Prefix Matching** - Checks if the derived Package ID matches your target prefix
+## License
 
----
-
-## 🔧 Requirements
-
-- **Rust** 1.75+ (for CLI)
-- **Node.js** 18+ (for Web UI)
-- **Sui Move Bytecode** (.mv files from `sui move build`)
-
----
-
-## 📊 Performance
-
-| Prefix Length | Combinations (16^L) | Estimated Time* | Difficulty |
-|---------------|---------------------|-----------------|------------|
-| 1 char | 16 | Instant | Very Easy |
-| 2 chars | 256 | Instant | Very Easy |
-| 3 chars | 4,096 | Instant | Very Easy |
-| 4 chars | 65,536 | ~0.07 seconds | Easy |
-| 5 chars | 1,048,576 | ~1 second | Easy |
-| 6 chars | 16,777,216 | ~17 seconds | Medium |
-| 7 chars | 268,435,456 | ~4.5 minutes | Medium |
-| 8 chars | 4,294,967,296 | ~1.2 hours | Hard |
-| 9 chars | 68,719,476,736 | ~19 hours | Very Hard |
-
-*Times based on ~1M H/s. Formula: `Time = 16^L / Hashrate`
-
----
-
-## 🔐 Security
-
-- **Offline Mining**: All computation happens locally
-- **No Private Keys Needed**: Package ID mining only requires your public address
-- **Open Source**: Full source code available for audit
-
----
-
-## 🌟 Use Cases
-
-- **Branding**: Create memorable package IDs for your smart contracts
-- **Protocol Identity**: Make your DeFi/NFT project stand out on block explorers
-- **Recognizable Addresses**: Easy-to-remember package addresses for users
-
----
-
-## 📚 Keywords
-
-Sui Vanity Package ID, Sui Package Address Generator, Sui Smart Contract Address, Move Package ID Miner, Sui Custom Package ID, Sui Blockchain Vanity Generator, Sui Move Vanity Address
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
-
-MIT License - See [LICENSE](./LICENSE)
-
----
-
-<div align="center">
-
-**Built with ❤️ for the Sui Ecosystem**
-
-⭐ Star this repo if you find it useful!
-
-</div>
+MIT
