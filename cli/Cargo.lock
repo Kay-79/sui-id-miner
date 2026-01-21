@@ -6963,37 +6963,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sui-id-miner"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.21.7",
- "bcs",
- "bs58 0.5.1",
- "clap",
- "console",
- "crossbeam-channel",
- "ctrlc",
- "ed25519-dalek",
- "fastcrypto 0.1.9 (git+https://github.com/MystenLabs/fastcrypto)",
- "futures-util",
- "hex",
- "indicatif",
- "num_cpus",
- "parking_lot",
- "rand 0.8.5",
- "rayon",
- "regex",
- "serde",
- "serde_json",
- "shared-crypto",
- "sui-sdk",
- "sui-types",
- "tokio",
- "tokio-tungstenite 0.26.2",
-]
-
-[[package]]
 name = "sui-json"
 version = "0.0.0"
 source = "git+https://github.com/MystenLabs/sui?branch=mainnet#04dd28d5c5d92bff685ddfecb86f8acce18ce6df"
@@ -7352,6 +7321,37 @@ dependencies = [
  "tracing",
  "typed-store-error",
  "x509-parser",
+]
+
+[[package]]
+name = "sui-vanity-id"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.21.7",
+ "bcs",
+ "bs58 0.5.1",
+ "clap",
+ "console",
+ "crossbeam-channel",
+ "ctrlc",
+ "ed25519-dalek",
+ "fastcrypto 0.1.9 (git+https://github.com/MystenLabs/fastcrypto)",
+ "futures-util",
+ "hex",
+ "indicatif",
+ "num_cpus",
+ "parking_lot",
+ "rand 0.8.5",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "shared-crypto",
+ "sui-sdk",
+ "sui-types",
+ "tokio",
+ "tokio-tungstenite 0.26.2",
 ]
 
 [[package]]

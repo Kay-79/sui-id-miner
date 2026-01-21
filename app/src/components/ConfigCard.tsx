@@ -1,9 +1,12 @@
-import { useRef, useState, useEffect } from 'react'
 import type { MiningMode } from '../types'
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
+import CommonConfig from './mining-config/CommonConfig'
+import PackageConfig from './mining-config/PackageConfig'
+import GasCoinConfig from './mining-config/GasCoinConfig'
+import MoveCallConfig from './mining-config/MoveCallConfig'
 
 interface ConfigCardProps {
     mode: MiningMode
+    setMode: (mode: MiningMode) => void
     prefix: string
     setPrefix: (prefix: string) => void
     baseGasBudget: number
@@ -12,28 +15,37 @@ interface ConfigCardProps {
     difficulty: number
     estimatedAttempts: number
     isValidPrefix: boolean
-    // New props for WebSocket mode
+    // WebSocket mode props
     modulesBase64: string[]
     setModulesBase64: (modules: string[]) => void
     sender: string
     setSender: (s: string) => void
     gasObjectId: string
     setGasObjectId: (id: string) => void
-    gasObjectVersion: string
-    setGasObjectVersion: (v: string) => void
-    gasObjectDigest: string
-    setGasObjectDigest: (d: string) => void
-}
-
-function formatNumber(n: number): string {
-    if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + 'B'
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M'
-    if (n >= 1_000) return (n / 1_000).toFixed(2) + 'K'
-    return n.toFixed(0)
+    // Network selection from parent (shared state)
+    network: 'mainnet' | 'testnet' | 'devnet'
+    setNetwork: (n: 'mainnet' | 'testnet' | 'devnet') => void
+    // Thread count
+    threadCount: number
+    setThreadCount: (n: number) => void
+    // Gas Coin mode
+    splitAmounts: number[]
+    setSplitAmounts: (amounts: number[]) => void
+    // Move Call mode
+    targetIndex: number
+    setTargetIndex: (n: number) => void
+    // Move Call Form
+    mcTarget: string
+    setMcTarget: (s: string) => void
+    mcTypeArgs: string[]
+    setMcTypeArgs: (args: string[]) => void
+    mcArgs: { type: string; value: string }[]
+    setMcArgs: (args: { type: string; value: string }[]) => void
 }
 
 export default function ConfigCard({
     mode,
+    setMode,
     prefix,
     setPrefix,
     baseGasBudget,
@@ -48,292 +60,134 @@ export default function ConfigCard({
     setSender,
     gasObjectId,
     setGasObjectId,
-    gasObjectVersion,
-    setGasObjectVersion,
-    gasObjectDigest,
-    setGasObjectDigest
+    network,
+    setNetwork,
+    threadCount,
+    setThreadCount,
+    splitAmounts,
+    setSplitAmounts,
+    targetIndex,
+    setTargetIndex,
+    mcTarget,
+    setMcTarget,
+    mcTypeArgs,
+    setMcTypeArgs,
+    mcArgs,
+    setMcArgs,
 }: ConfigCardProps) {
-    
-    const fileInputRef = useRef<HTMLInputElement>(null)
-    const [statusMsg, setStatusMsg] = useState('')
-    const [network, setNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('testnet')
-    const [isFetching, setIsFetching] = useState(false)
 
-    // Read .mv files and convert to Base64
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files || e.target.files.length === 0) return
-
-        setStatusMsg("Reading modules...")
-        
-        try {
-            const modules: string[] = []
-            
-            for (let i = 0; i < e.target.files.length; i++) {
-                const file = e.target.files[i]
-                if (file.name.endsWith('.mv')) {
-                    const buffer = await file.arrayBuffer()
-                    const bytes = new Uint8Array(buffer)
-                    let binary = ''
-                    for (let j = 0; j < bytes.byteLength; j++) {
-                        binary += String.fromCharCode(bytes[j])
-                    }
-                    modules.push(btoa(binary))
-                }
-            }
-
-            if (modules.length === 0) {
-                setStatusMsg("❌ No .mv files found!")
-                return
-            }
-
-            setModulesBase64(modules)
-            setStatusMsg(`✅ Loaded ${modules.length} module(s)`)
-
-        } catch (err: any) {
-            console.error(err)
-            setStatusMsg("❌ Error reading files: " + err.message)
+    // Helper to get config label
+    const getConfigLabel = (m: MiningMode) => {
+        switch (m) {
+            case 'PACKAGE': return '📦 Package Config'
+            case 'GAS_COIN': return '🪙 Gas Coin Config'
+            case 'MOVE_CALL': return '⚡ Move Call Config'
+            default: return '⚙️ Config'
         }
     }
 
-    // Fetch the coin with highest balance for sender
-    const fetchBestGasCoin = async () => {
-        if (!sender || isFetching) return
-        // Validate sender format (0x + 64 hex chars)
-        if (!/^0x[a-fA-F0-9]{64}$/.test(sender)) return
-        
-        setIsFetching(true)
-        setStatusMsg(`⏳ Finding best gas coin on ${network.toUpperCase()}...`)
-        try {
-            const client = new SuiClient({ url: getFullnodeUrl(network) })
-            const coins = await client.getAllCoins({ owner: sender })
-            
-            if (coins.data.length === 0) {
-                setStatusMsg("❌ No coins found for this address on " + network.toUpperCase())
-                return
-            }
-
-            // Find SUI coins and get the one with highest balance
-            const suiCoins = coins.data.filter(c => c.coinType === '0x2::sui::SUI')
-            if (suiCoins.length === 0) {
-                setStatusMsg("❌ No SUI coins found on " + network.toUpperCase())
-                return
-            }
-
-            // Sort by balance descending and pick the highest
-            const bestCoin = suiCoins.reduce((max, coin) => 
-                BigInt(coin.balance) > BigInt(max.balance) ? coin : max
-            )
-
-            setGasObjectId(bestCoin.coinObjectId)
-            // Version and digest will be auto-fetched by the gasObjectId useEffect
-            setStatusMsg(`✅ Found coin with ${(Number(bestCoin.balance) / 1e9).toFixed(4)} SUI`)
-
-        } catch (e: any) {
-            console.error(e)
-            setStatusMsg("❌ " + e.message)
-        } finally {
-            setIsFetching(false)
+    const getModeDescription = (m: MiningMode) => {
+        switch (m) {
+            case 'PACKAGE': return 'Vanity Package ID for your Move smart contract. (Result: 0x...::module)'
+            case 'MOVE_CALL': return 'Vanity ID for an object created / transferred by a Move transaction (e.g. Minting an NFT).'
+            case 'GAS_COIN': return 'Vanity ID for a split Coin<SUI> object. You can use it as Gas or just keep it.'
+            default: return ''
         }
     }
-
-    const fetchGasDetails = async (showStatus = true) => {
-        if (!gasObjectId || isFetching) return
-        // Validate gasObjectId format (0x + 64 hex chars)
-        if (!/^0x[a-fA-F0-9]{64}$/.test(gasObjectId)) return
-        
-        setIsFetching(true)
-        if (showStatus) setStatusMsg(`⏳ Fetching from ${network.toUpperCase()}...`)
-        try {
-            const client = new SuiClient({ url: getFullnodeUrl(network) })
-            const data = await client.getObject({ id: gasObjectId })
-            
-            if (data.data) {
-                setGasObjectVersion(data.data.version)
-                setGasObjectDigest(data.data.digest)
-                if (showStatus) setStatusMsg("✅ Gas object loaded!")
-            } else if (data.error) {
-                if (showStatus) setStatusMsg("❌ " + data.error.code)
-            } else {
-                if (showStatus) setStatusMsg("❌ Object not found")
-            }
-        } catch (e: any) {
-            console.error(e)
-            if (showStatus) setStatusMsg("❌ " + e.message)
-        } finally {
-            setIsFetching(false)
-        }
-    }
-
-    // Auto-fetch best gas coin when sender changes (debounced)
-    useEffect(() => {
-        if (!sender || !/^0x[a-fA-F0-9]{64}$/.test(sender)) return
-        // Skip if sender is all zeros (default)
-        if (/^0x0+$/.test(sender)) return
-        
-        const timer = setTimeout(() => {
-            fetchBestGasCoin()
-        }, 500)
-
-        return () => clearTimeout(timer)
-    }, [sender, network])
-
-    // Auto-fetch gas details when gasObjectId changes (debounced)
-    useEffect(() => {
-        if (!gasObjectId || !/^0x[a-fA-F0-9]{64}$/.test(gasObjectId)) return
-        
-        const timer = setTimeout(() => {
-            fetchGasDetails(true)
-        }, 500)
-
-        return () => clearTimeout(timer)
-    }, [gasObjectId])
-
-    // Auto-fetch when network changes (if gasObjectId is valid)
-    useEffect(() => {
-        if (!gasObjectId || !/^0x[a-fA-F0-9]{64}$/.test(gasObjectId)) return
-        fetchGasDetails(true)
-    }, [network])
 
     return (
-        <div className="brutal-card p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="heading-lg flex items-center gap-2">
-                    {mode === 'ADDRESS' ? '💳 Address Config' : '📦 Package Config'}
+        <div className="brutal-card p-6 mb-8 relative">
+            <div className="flex justify-between items-center mb-2">
+                <h2 className="heading-lg flex items-center gap-3">
+                    {getConfigLabel(mode)}
                 </h2>
+                {/* Mode Switcher */}
+                <div className="flex gap-1">
+                    {(['PACKAGE', 'MOVE_CALL', 'GAS_COIN'] as const).map((m) => (
+                        <button
+                            key={m}
+                            onClick={() => setMode(m)}
+                            disabled={isRunning}
+                            className={`px-3 py-1 text-xs font-bold uppercase border-2 border-black transition-all
+                                ${mode === m
+                                    ? 'bg-black text-white'
+                                    : 'bg-white text-black hover:bg-gray-100'}
+                                ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {m === 'PACKAGE' ? '📦 Package' : m === 'GAS_COIN' ? '🪙 Gas Coin' : '⚡ Move Call'}
+                        </button>
+                    ))}
+                </div>
             </div>
-            
+
+            <div className="mb-6 p-2 bg-gray-100 border border-gray-300 text-sm text-gray-700 rounded-sm">
+                💡 <strong>Info:</strong> {getModeDescription(mode)}
+            </div>
+
             <div className="grid gap-6">
                 {/* Common: Prefix */}
-                <div>
-                    <label className="block mb-2 font-bold uppercase text-sm tracking-wide">
-                        Target Hex Prefix <span className="text-[var(--primary)]">*</span>
-                    </label>
-                    <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-gray-400">0x</span>
-                        <input
-                            type="text"
-                            value={prefix}
-                            onChange={(e) => setPrefix(e.target.value.replace(/[^0-9a-fA-F]/g, '').toLowerCase())}
-                            placeholder="e.g. face, 7979, 12345"
-                            className={`brutal-input flex-1 uppercase font-mono text-lg ${!isValidPrefix && prefix ? 'border-[var(--error)]' : ''}`}
-                            disabled={isRunning}
-                        />
-                    </div>
-                    <div className="mt-2 flex items-center gap-4">
-                        <span className={`brutal-tag ${difficulty <= 3 ? 'bg-[var(--success)]' : difficulty <= 5 ? 'bg-[var(--warning)]' : 'bg-[var(--error)]'}`}>
-                            {difficulty} chars
-                        </span>
-                        <span className="text-sm text-gray-600 font-medium">
-                            ~{formatNumber(estimatedAttempts)} attempts
-                        </span>
-                    </div>
-                </div>
+                <CommonConfig
+                    prefix={prefix}
+                    setPrefix={setPrefix}
+                    difficulty={difficulty}
+                    estimatedAttempts={estimatedAttempts}
+                    isValidPrefix={isValidPrefix}
+                    isRunning={isRunning}
+                />
 
                 {/* Package Mode Config */}
                 {mode === 'PACKAGE' && (
-                    <div className="space-y-4 p-4 bg-gray-50 border-2 border-dashed border-gray-300">
-                        
-                        {/* Sender */}
-                        <div>
-                            <label className="block text-xs font-bold uppercase mb-1">Sender Address</label>
-                            <input 
-                                type="text" 
-                                value={sender}
-                                onChange={(e) => setSender(e.target.value)}
-                                className="brutal-input text-xs font-mono py-1"
-                                placeholder="0x..."
-                            />
-                        </div>
+                    <PackageConfig
+                        sender={sender}
+                        setSender={setSender}
+                        baseGasBudget={baseGasBudget}
+                        setBaseGasBudget={setBaseGasBudget}
+                        threadCount={threadCount}
+                        setThreadCount={setThreadCount}
+                        gasObjectId={gasObjectId}
+                        setGasObjectId={setGasObjectId}
+                        network={network}
+                        setNetwork={setNetwork}
+                        modulesBase64={modulesBase64}
+                        setModulesBase64={setModulesBase64}
+                        isRunning={isRunning}
+                    />
+                )}
 
-                        {/* Gas Budget */}
-                        <div>
-                            <label className="block text-xs font-bold uppercase mb-1">Gas Budget</label>
-                            <input
-                                type="number"
-                                value={baseGasBudget}
-                                onChange={(e) => setBaseGasBudget(parseInt(e.target.value) || 0)}
-                                className="brutal-input font-mono text-sm"
-                            />
-                        </div>
+                {/* Gas Coin Mode Config */}
+                {mode === 'GAS_COIN' && (
+                    <GasCoinConfig
+                        sender={sender}
+                        setSender={setSender}
+                        baseGasBudget={baseGasBudget}
+                        setBaseGasBudget={setBaseGasBudget}
+                        threadCount={threadCount}
+                        setThreadCount={setThreadCount}
+                        gasObjectId={gasObjectId}
+                        setGasObjectId={setGasObjectId}
+                        network={network}
+                        setNetwork={setNetwork}
+                        splitAmounts={splitAmounts}
+                        setSplitAmounts={setSplitAmounts}
+                        isRunning={isRunning}
+                    />
+                )}
 
-                        {/* Gas Object */}
-                        <div className="p-3 bg-white border border-blue-200 rounded">
-                            <div className="flex justify-between items-center mb-2">
-                                <h4 className="text-xs font-bold uppercase">Gas Object</h4>
-                                <div className="flex gap-1">
-                                    {(['mainnet', 'testnet', 'devnet'] as const).map(net => (
-                                        <button
-                                            key={net}
-                                            onClick={() => setNetwork(net)}
-                                            className={`px-2 py-0.5 text-[10px] font-bold uppercase border border-black ${network === net ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-100'}`}
-                                        >
-                                            {net}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            <div className="grid gap-2">
-                                <div className="flex gap-2">
-                                    <input 
-                                        type="text" 
-                                        value={gasObjectId}
-                                        onChange={(e) => setGasObjectId(e.target.value)}
-                                        className="brutal-input text-xs font-mono py-1 flex-1"
-                                        placeholder="Object ID (0x...)"
-                                    />
-                                    <button 
-                                        onClick={() => fetchGasDetails(true)}
-                                        disabled={isFetching}
-                                        className={`px-3 py-1 text-xs font-bold uppercase active:translate-y-0.5 transition-all border-2 border-black shadow-[2px_2px_0px_rgba(0,0,0,1)] ${isFetching ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
-                                    >
-                                        {isFetching ? '⏳' : 'Fetch'}
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <input 
-                                        type="text" 
-                                        value={gasObjectVersion}
-                                        onChange={(e) => setGasObjectVersion(e.target.value)}
-                                        className="brutal-input text-xs font-mono py-1 col-span-1"
-                                        placeholder="Version"
-                                    />
-                                    <input 
-                                        type="text" 
-                                        value={gasObjectDigest}
-                                        onChange={(e) => setGasObjectDigest(e.target.value)}
-                                        className="brutal-input text-xs font-mono py-1 col-span-2"
-                                        placeholder="Digest (Base58)"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Modules */}
-                        <div className="p-3 bg-white border border-green-200 rounded">
-                            <h4 className="text-xs font-bold uppercase mb-2">Move Modules</h4>
-                            <div className="flex items-center gap-2">
-                                <label className="brutal-btn cursor-pointer bg-green-600 text-white text-sm py-1 px-3">
-                                    🗃️ Select Package Build
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef}
-                                        onChange={handleFileChange}
-                                        className="hidden"
-                                        accept=".mv"
-                                        multiple
-                                    />
-                                </label>
-                                <span className="text-xs font-bold text-[var(--primary)]">
-                                    {modulesBase64.length > 0 ? `${modulesBase64.length} module(s)` : ''}
-                                </span>
-                            </div>
-                            {statusMsg && (
-                                <p className="text-xs mt-2 font-medium">{statusMsg}</p>
-                            )}
-                        </div>
-
-                    </div>
+                {/* Move Call Mode Config */}
+                {mode === 'MOVE_CALL' && (
+                    <MoveCallConfig
+                        mcTarget={mcTarget}
+                        setMcTarget={setMcTarget}
+                        mcTypeArgs={mcTypeArgs}
+                        setMcTypeArgs={setMcTypeArgs}
+                        mcArgs={mcArgs}
+                        setMcArgs={setMcArgs}
+                        targetIndex={targetIndex}
+                        setTargetIndex={setTargetIndex}
+                        threadCount={threadCount}
+                        setThreadCount={setThreadCount}
+                        isRunning={isRunning}
+                    />
                 )}
             </div>
         </div>

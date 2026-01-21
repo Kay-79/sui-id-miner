@@ -1,6 +1,7 @@
 //! WebSocket Server for Web Mining Interface
 
-use crate::cpu_miner::CpuMiner;
+use crate::mining::{CpuExecutor, GasCoinMode, MinerConfig, MinerExecutor, PackageMode, SingleObjectMode};
+use crate::module_order::sort_modules_by_dependency;
 use crate::target::TargetChecker;
 
 use anyhow::{Context, Result};
@@ -16,13 +17,10 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-use sui_types::{
-    base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress},
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionData,
-};
+use sui_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress};
 
-use fastcrypto::hash::{Blake2b256, HashFunction};
+use crate::common::{create_tx_template, create_split_tx_template, create_template_from_bytes, format_large_number, randomize_gas_budget};
+use rand::Rng;
 use rand::rngs::OsRng;
 
 /// Message from Web Client
@@ -40,11 +38,32 @@ pub enum ClientMessage {
         gas_object_version: u64,
         gas_object_digest: String,
         threads: Option<usize>,
+        #[serde(default)]
+        nonce_offset: u64, // Resume from this nonce
     },
-    #[serde(rename = "start_address_mining")]
-    StartAddressMining {
+    #[serde(rename = "start_gas_coin_mining")]
+    StartGasCoinMining {
         prefix: String,
+        split_amounts: Vec<u64>,
+        sender: String,
+        gas_budget: u64,
+        gas_price: u64,
+        gas_object_id: String,
+        gas_object_version: u64,
+        gas_object_digest: String,
         threads: Option<usize>,
+        #[serde(default)]
+        nonce_offset: u64,
+    },
+    #[serde(rename = "start_move_call_mining")]
+    StartMoveCallMining {
+        prefix: String,
+        tx_bytes_base64: String,
+        #[serde(default)]
+        object_index: u16,
+        threads: Option<usize>,
+        #[serde(default)]
+        nonce_offset: u64,
     },
     #[serde(rename = "stop_mining")]
     StopMining,
@@ -78,16 +97,28 @@ pub enum ServerMessage {
         gas_budget_used: u64,
     },
 
-    #[serde(rename = "address_found")]
-    AddressFound {
-        address: String,
-        private_key: String,
-        public_key: String,
+    #[serde(rename = "gas_coin_found")]
+    GasCoinFound {
+        object_id: String,
+        object_index: u16,
+        tx_digest: String,
+        tx_bytes_base64: String,
         attempts: u64,
+        gas_budget_used: u64,
+    },
+
+    #[serde(rename = "move_call_found")]
+    MoveCallFound {
+        object_id: String,
+        object_index: u16,
+        tx_digest: String,
+        tx_bytes_base64: String,
+        attempts: u64,
+        gas_budget_used: u64,
     },
 
     #[serde(rename = "stopped")]
-    Stopped { attempts: u64 },
+    Stopped { attempts: u64, last_nonce: u64 },
 
     #[serde(rename = "error")]
     Error { message: String },
@@ -169,6 +200,7 @@ async fn handle_connection(
                         gas_object_version,
                         gas_object_digest,
                         threads,
+                        nonce_offset,
                     }) => {
                         // Use client modules if provided, otherwise fallback to default
                         let mut mut_modules = modules_base64
@@ -196,6 +228,27 @@ async fn handle_connection(
                             continue;
                         }
 
+                        // Sort modules by dependency order (critical for multi-module packages!)
+                        let sorted_modules = if modules.len() > 1 {
+                            println!(
+                                "   🔄 Sorting {} modules by dependency order...",
+                                modules.len()
+                            );
+                            match sort_modules_by_dependency(modules) {
+                                Ok(sorted) => sorted,
+                                Err(e) => {
+                                    let _ = out_tx
+                                        .send(ServerMessage::Error {
+                                            message: format!("Failed to sort modules: {}", e),
+                                        })
+                                        .await;
+                                    continue;
+                                }
+                            }
+                        } else {
+                            modules
+                        };
+
                         cancel.store(false, Ordering::SeqCst);
                         let cancel_clone = cancel.clone();
                         let out_tx_clone = out_tx.clone();
@@ -204,7 +257,7 @@ async fn handle_connection(
                         tokio::task::spawn_blocking(move || {
                             let result = run_package_mining(
                                 prefix,
-                                modules,
+                                sorted_modules,
                                 sender,
                                 gas_budget,
                                 gas_price,
@@ -212,6 +265,7 @@ async fn handle_connection(
                                 gas_object_version,
                                 gas_object_digest,
                                 thread_count,
+                                nonce_offset,
                                 cancel_clone,
                                 out_tx_clone,
                             );
@@ -221,14 +275,79 @@ async fn handle_connection(
                             }
                         });
                     }
-                    Ok(ClientMessage::StartAddressMining { prefix, threads }) => {
+                    Ok(ClientMessage::StartGasCoinMining {
+                        prefix,
+                        split_amounts,
+                        sender,
+                        gas_budget,
+                        gas_price,
+                        gas_object_id,
+                        gas_object_version,
+                        gas_object_digest,
+                        threads,
+                        nonce_offset,
+                    }) => {
+                        if split_amounts.is_empty() {
+                            let _ = out_tx
+                                .send(ServerMessage::Error {
+                                    message: "split_amounts must not be empty".to_string(),
+                                })
+                                .await;
+                            continue;
+                        }
+
                         cancel.store(false, Ordering::SeqCst);
                         let cancel_clone = cancel.clone();
                         let out_tx_clone = out_tx.clone();
                         let thread_count = threads.unwrap_or_else(num_cpus::get);
 
                         tokio::task::spawn_blocking(move || {
-                            run_address_mining(prefix, thread_count, cancel_clone, out_tx_clone);
+                            let result = run_gas_coin_mining(
+                                prefix,
+                                split_amounts,
+                                sender,
+                                gas_budget,
+                                gas_price,
+                                gas_object_id,
+                                gas_object_version,
+                                gas_object_digest,
+                                thread_count,
+                                nonce_offset,
+                                cancel_clone,
+                                out_tx_clone,
+                            );
+
+                            if let Err(e) = result {
+                                eprintln!("Gas coin mining error: {}", e);
+                            }
+                        });
+                    }
+                    Ok(ClientMessage::StartMoveCallMining {
+                        prefix,
+                        tx_bytes_base64,
+                        object_index,
+                        threads,
+                        nonce_offset,
+                    }) => {
+                        cancel.store(false, Ordering::SeqCst);
+                        let cancel_clone = cancel.clone();
+                        let out_tx_clone = out_tx.clone();
+                        let thread_count = threads.unwrap_or_else(num_cpus::get);
+
+                        tokio::task::spawn_blocking(move || {
+                            let result = run_move_call_mining(
+                                prefix,
+                                tx_bytes_base64,
+                                object_index,
+                                thread_count,
+                                nonce_offset,
+                                cancel_clone,
+                                out_tx_clone,
+                            );
+
+                            if let Err(e) = result {
+                                eprintln!("Move Call mining error: {}", e);
+                            }
                         });
                     }
                     Ok(ClientMessage::StopMining) => {
@@ -255,158 +374,6 @@ async fn handle_connection(
 }
 
 // =============================================================================
-// ADDRESS MINING
-// =============================================================================
-
-fn run_address_mining(
-    prefix: String,
-    threads: usize,
-    cancel: Arc<AtomicBool>,
-    out_tx: mpsc::Sender<ServerMessage>,
-) {
-    use ed25519_dalek::SigningKey;
-
-    let prefix_lower = prefix.to_lowercase();
-    let prefix_bytes = match hex::decode(if prefix_lower.len() % 2 == 1 {
-        format!("{}0", prefix_lower)
-    } else {
-        prefix_lower.clone()
-    }) {
-        Ok(b) => b,
-        Err(_) => {
-            let _ = out_tx.blocking_send(ServerMessage::Error {
-                message: "Invalid hex prefix".to_string(),
-            });
-            return;
-        }
-    };
-    let nibble_count = prefix_lower.len();
-    let difficulty = nibble_count;
-    let estimated_attempts = 16u64.pow(difficulty as u32);
-
-    let _ = out_tx.blocking_send(ServerMessage::MiningStarted {
-        mode: "ADDRESS".to_string(),
-        prefix: prefix_lower.clone(),
-        difficulty,
-        estimated_attempts,
-        threads,
-    });
-
-    let found = Arc::new(AtomicBool::new(false));
-    let total_attempts = Arc::new(std::sync::atomic::AtomicU64::new(0));
-
-    // Progress reporter
-    let out_tx_progress = out_tx.clone();
-    let cancel_progress = cancel.clone();
-    let total_attempts_progress = total_attempts.clone();
-    let progress_thread = thread::spawn(move || {
-        let mut last = 0u64;
-        let mut last_time = std::time::Instant::now();
-        while !cancel_progress.load(Ordering::Relaxed) {
-            thread::sleep(Duration::from_millis(500));
-            let current = total_attempts_progress.load(Ordering::Relaxed);
-            let now = std::time::Instant::now();
-            let elapsed = now.duration_since(last_time).as_secs_f64();
-            let hashrate = if elapsed > 0.0 {
-                (current - last) as f64 / elapsed
-            } else {
-                0.0
-            };
-            let _ = out_tx_progress.blocking_send(ServerMessage::Progress {
-                attempts: current,
-                hashrate,
-            });
-            last = current;
-            last_time = now;
-        }
-    });
-
-    // Mining threads
-    let handles: Vec<_> = (0..threads)
-        .map(|_| {
-            let prefix_bytes = prefix_bytes.clone();
-            let cancel = cancel.clone();
-            let found = found.clone();
-            let total_attempts = total_attempts.clone();
-            let out_tx = out_tx.clone();
-            let nibble_count = nibble_count;
-
-            thread::spawn(move || {
-                let mut rng = OsRng;
-                let mut local_attempts = 0u64;
-
-                while !cancel.load(Ordering::Relaxed) && !found.load(Ordering::Relaxed) {
-                    let signing_key = SigningKey::generate(&mut rng);
-                    let public_key = signing_key.verifying_key();
-                    let public_key_bytes: [u8; 32] = public_key.to_bytes();
-
-                    // Derive address: Blake2b256(0x00 || pubkey)
-                    let mut hasher = Blake2b256::default();
-                    hasher.update(&[0x00]);
-                    hasher.update(&public_key_bytes);
-                    let address: [u8; 32] = hasher.finalize().into();
-
-                    local_attempts += 1;
-
-                    if matches_prefix(&address, &prefix_bytes, nibble_count) {
-                        if found
-                            .compare_exchange(false, true, Ordering::SeqCst, Ordering::Relaxed)
-                            .is_ok()
-                        {
-                            let _ = out_tx.blocking_send(ServerMessage::AddressFound {
-                                address: format!("0x{}", hex::encode(address)),
-                                private_key: hex::encode(signing_key.to_bytes()),
-                                public_key: hex::encode(public_key_bytes),
-                                attempts: total_attempts.load(Ordering::Relaxed) + local_attempts,
-                            });
-                        }
-                        return;
-                    }
-
-                    if local_attempts % 10000 == 0 {
-                        total_attempts.fetch_add(10000, Ordering::Relaxed);
-                    }
-                }
-            })
-        })
-        .collect();
-
-    for h in handles {
-        let _ = h.join();
-    }
-
-    cancel.store(true, Ordering::SeqCst);
-    let _ = progress_thread.join();
-
-    if !found.load(Ordering::Relaxed) {
-        let _ = out_tx.blocking_send(ServerMessage::Stopped {
-            attempts: total_attempts.load(Ordering::Relaxed),
-        });
-    }
-}
-
-fn matches_prefix(address: &[u8; 32], prefix_bytes: &[u8], nibble_count: usize) -> bool {
-    let full_bytes = nibble_count / 2;
-    let has_half = nibble_count % 2 == 1;
-
-    for i in 0..full_bytes {
-        if address[i] != prefix_bytes[i] {
-            return false;
-        }
-    }
-
-    if has_half {
-        let expected_nibble = prefix_bytes[full_bytes] >> 4;
-        let actual_nibble = address[full_bytes] >> 4;
-        if expected_nibble != actual_nibble {
-            return false;
-        }
-    }
-
-    true
-}
-
-// =============================================================================
 // PACKAGE MINING
 // =============================================================================
 
@@ -420,9 +387,32 @@ fn run_package_mining(
     gas_object_version: u64,
     gas_object_digest: String,
     threads: usize,
+    mut start_nonce: u64,
     cancel: Arc<AtomicBool>,
     out_tx: mpsc::Sender<ServerMessage>,
 ) -> Result<()> {
+    // If start_nonce is 0 (fresh start), randomize it to avoid re-mining the same range.
+    // Range: [100,000, u64::MAX - 8_446_744_073_709_551_615]
+    // 100,000 is safe buffer above current mainnet epoch.
+    // u64::MAX buffer avoids immediate overflow during crunching.
+    if start_nonce == 0 {
+        let mut rng = OsRng;
+        start_nonce = rng.gen_range(100_000..(u64::MAX - 8_446_744_073_709_551_615));
+        println!(
+            "Mining starting with randomized expiration epoch: {}",
+            format_large_number(start_nonce)
+        );
+    }
+
+    // Randomize gas budget using shared logic
+    let (effective_gas_budget, extra_gas) = randomize_gas_budget(gas_budget);
+    if extra_gas > 0 {
+        println!(
+            "Adjusted Gas Budget: {} (Base: {} + Random: {})",
+            effective_gas_budget, gas_budget, extra_gas
+        );
+    }
+
     use std::str::FromStr;
 
     let target = TargetChecker::from_hex_prefix(&prefix).context("Invalid prefix")?;
@@ -443,8 +433,13 @@ fn run_package_mining(
 
     let gas_payment = (gas_obj_id, gas_seq, gas_digest);
 
-    let (tx_template, salt_offset) =
-        create_tx_template(sender_addr, modules, gas_budget, gas_price, gas_payment)?;
+    let (tx_template, salt_offset) = create_tx_template(
+        sender_addr,
+        modules,
+        effective_gas_budget,
+        gas_price,
+        gas_payment,
+    )?;
 
     let _ = out_tx.blocking_send(ServerMessage::MiningStarted {
         mode: "PACKAGE".to_string(),
@@ -486,61 +481,275 @@ fn run_package_mining(
         }
     });
 
-    let miner = CpuMiner::new(tx_template, salt_offset, target, threads);
-    let result = miner.mine(total_attempts.clone(), cancel.clone());
+
+    let executor = CpuExecutor::new();
+    let mode = PackageMode;
+    let config = MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_nonce);
+    let result = executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
 
     cancel.store(true, Ordering::SeqCst);
     let _ = progress_thread.join();
 
     if let Some(res) = result {
         let _ = out_tx.blocking_send(ServerMessage::PackageFound {
-            package_id: format!("0x{}", hex::encode(res.package_id.as_ref())),
+            package_id: format!("0x{}", hex::encode(res.object_id.as_ref())),
             tx_digest: res.tx_digest.to_string(),
             tx_bytes_base64: general_purpose::STANDARD.encode(&res.tx_bytes),
             attempts: res.attempts,
             gas_budget_used: res.gas_budget_used,
         });
     } else {
-        let _ = out_tx.blocking_send(ServerMessage::Stopped { attempts: 0 });
+        // Return last nonce so FE can resume
+        let last_nonce = total_attempts.load(Ordering::Relaxed);
+        let _ = out_tx.blocking_send(ServerMessage::Stopped {
+            attempts: last_nonce,
+            last_nonce,
+        });
     }
 
     Ok(())
 }
 
-fn create_tx_template(
-    sender: SuiAddress,
-    module_bytes: Vec<Vec<u8>>,
-    base_gas_budget: u64,
+// =============================================================================
+// GAS COIN MINING
+// =============================================================================
+
+fn run_gas_coin_mining(
+    prefix: String,
+    split_amounts: Vec<u64>,
+    sender: String,
+    gas_budget: u64,
     gas_price: u64,
-    gas_payment: (ObjectID, SequenceNumber, ObjectDigest),
-) -> Result<(Vec<u8>, usize)> {
+    gas_object_id: String,
+    gas_object_version: u64,
+    gas_object_digest: String,
+    threads: usize,
+    mut start_nonce: u64,
+    cancel: Arc<AtomicBool>,
+    out_tx: mpsc::Sender<ServerMessage>,
+) -> Result<()> {
+    // If start_nonce is 0, randomize it
+    if start_nonce == 0 {
+        let mut rng = OsRng;
+        start_nonce = rng.gen_range(100_000..(u64::MAX - 8_446_744_073_709_551_615));
+        println!(
+            "Gas coin mining starting with randomized expiration epoch: {}",
+            format_large_number(start_nonce)
+        );
+    }
+
+    // Randomize gas budget
+    let (effective_gas_budget, extra_gas) = randomize_gas_budget(gas_budget);
+    if extra_gas > 0 {
+        println!(
+            "Adjusted Gas Budget: {} (Base: {} + Random: {})",
+            effective_gas_budget, gas_budget, extra_gas
+        );
+    }
+
     use std::str::FromStr;
 
-    let dependencies = vec![ObjectID::from_str("0x1")?, ObjectID::from_str("0x2")?];
-    let mut ptb = ProgrammableTransactionBuilder::new();
-    let upgrade_cap = ptb.publish_upgradeable(module_bytes, dependencies);
-    ptb.transfer_arg(sender, upgrade_cap);
-    let pt = ptb.finish();
+    let target = TargetChecker::from_hex_prefix(&prefix).context("Invalid prefix")?;
+    let sender_addr = SuiAddress::from_str(&sender).context("Invalid sender")?;
 
-    let placeholder_gas_budget = 0xAAAAAAAAAAAAAAAAu64;
-    let tx_data = TransactionData::new_programmable(
-        sender,
-        vec![gas_payment],
-        pt,
-        placeholder_gas_budget,
+    let gas_obj_id = ObjectID::from_str(&gas_object_id).context("Invalid gas object ID")?;
+    let gas_seq = SequenceNumber::from_u64(gas_object_version);
+
+    let digest_bytes = bs58::decode(&gas_object_digest)
+        .into_vec()
+        .context("Invalid gas object digest (expected Base58)")?;
+    let mut digest_arr = [0u8; 32];
+    if digest_bytes.len() != 32 {
+        anyhow::bail!("Gas object digest must be 32 bytes");
+    }
+    digest_arr.copy_from_slice(&digest_bytes);
+    let gas_digest = ObjectDigest::new(digest_arr);
+
+    let gas_payment = (gas_obj_id, gas_seq, gas_digest);
+
+    let (tx_template, salt_offset, num_outputs) = create_split_tx_template(
+        sender_addr,
+        split_amounts.clone(),
+        effective_gas_budget,
         gas_price,
+        gas_payment,
+    )?;
+
+    println!(
+        "🪙 Gas Coin mining: prefix=0x{}, split_amounts={:?}, outputs={}",
+        prefix, split_amounts, num_outputs
     );
 
-    let tx_bytes = bcs::to_bytes(&tx_data)?;
-    let placeholder_bytes = placeholder_gas_budget.to_le_bytes();
-    let gas_budget_offset = tx_bytes
-        .windows(placeholder_bytes.len())
-        .position(|window| window == placeholder_bytes)
-        .context("Could not find gas_budget placeholder")?;
+    let _ = out_tx.blocking_send(ServerMessage::MiningStarted {
+        mode: "GAS_COIN".to_string(),
+        prefix: prefix.clone(),
+        difficulty: target.difficulty(),
+        estimated_attempts: target.estimated_attempts(),
+        threads,
+    });
 
-    let mut tx_template = tx_bytes;
-    tx_template[gas_budget_offset..gas_budget_offset + 8]
-        .copy_from_slice(&base_gas_budget.to_le_bytes());
+    let total_attempts = Arc::new(std::sync::atomic::AtomicU64::new(0));
 
-    Ok((tx_template, gas_budget_offset))
+    let out_tx_progress = out_tx.clone();
+    let cancel_progress = cancel.clone();
+    let total_attempts_progress = total_attempts.clone();
+
+    let progress_thread = thread::spawn(move || {
+        let mut last_attempts = 0u64;
+        let mut last_time = std::time::Instant::now();
+
+        while !cancel_progress.load(Ordering::Relaxed) {
+            thread::sleep(Duration::from_millis(500));
+
+            let current = total_attempts_progress.load(Ordering::Relaxed);
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(last_time).as_secs_f64();
+            let hashrate = if elapsed > 0.0 {
+                (current - last_attempts) as f64 / elapsed
+            } else {
+                0.0
+            };
+
+            let _ = out_tx_progress.blocking_send(ServerMessage::Progress {
+                attempts: current,
+                hashrate,
+            });
+
+            last_attempts = current;
+            last_time = now;
+        }
+    });
+
+
+    let executor = CpuExecutor::new();
+    let mode = GasCoinMode::new(num_outputs);
+    let config = MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_nonce);
+    let result = executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
+
+    cancel.store(true, Ordering::SeqCst);
+    let _ = progress_thread.join();
+
+    if let Some(res) = result {
+        let _ = out_tx.blocking_send(ServerMessage::GasCoinFound {
+            object_id: format!("0x{}", hex::encode(res.object_id.as_ref())),
+            object_index: res.object_index,
+            tx_digest: res.tx_digest.to_string(),
+            tx_bytes_base64: general_purpose::STANDARD.encode(&res.tx_bytes),
+            attempts: res.attempts,
+            gas_budget_used: res.gas_budget_used,
+        });
+    } else {
+        let last_nonce = total_attempts.load(Ordering::Relaxed);
+        let _ = out_tx.blocking_send(ServerMessage::Stopped {
+            attempts: last_nonce,
+            last_nonce,
+        });
+    }
+
+    Ok(())
+}
+
+// =============================================================================
+// MOVE CALL MINING (VANITY ID)
+// =============================================================================
+
+fn run_move_call_mining(
+    prefix: String,
+    tx_bytes_base64: String,
+    object_index: u16,
+    threads: usize,
+    start_nonce: u64,
+    cancel: Arc<AtomicBool>,
+    out_tx: mpsc::Sender<ServerMessage>,
+) -> Result<()> {
+    // Decode base64 bytes
+    let tx_bytes = general_purpose::STANDARD
+        .decode(&tx_bytes_base64)
+        .context("Failed to decode base64 transaction bytes")?;
+
+    // 1. Create Transaction Template from generic bytes
+    // This allows mining ANY transaction (Move Calls, etc.)
+    let (tx_template, salt_offset) = create_template_from_bytes(&tx_bytes)
+        .context("Failed to create mining template from transaction bytes")?;
+
+    let target = TargetChecker::from_hex_prefix(&prefix).context("Invalid prefix")?;
+
+    println!("   🚀 Starting Move Call mining...");
+    println!("      Prefix: 0x{}", prefix);
+    println!("      Threads: {}", threads);
+    println!("      Target Index: {}", object_index);
+    println!("      Start Nonce: {}", format_large_number(start_nonce));
+    println!("      Template size: {} bytes", tx_template.len());
+
+    let _ = out_tx.blocking_send(ServerMessage::MiningStarted {
+        mode: "MoveCall".to_string(),
+        prefix: prefix.clone(),
+        difficulty: target.difficulty(),
+        estimated_attempts: target.estimated_attempts(),
+        threads,
+    });
+
+    let total_attempts = Arc::new(std::sync::atomic::AtomicU64::new(start_nonce));
+
+    // Progress Reporter
+    let progress_thread = thread::spawn({
+        let total_attempts = total_attempts.clone();
+        let cancel = cancel.clone();
+        let out_tx_progress = out_tx.clone();
+        move || {
+            let mut last_attempts = start_nonce;
+            let mut last_time = std::time::Instant::now();
+            while !cancel.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(500));
+                let current = total_attempts.load(Ordering::Relaxed);
+                
+                // Only send update if progress made
+                if current > last_attempts {
+                    let now = std::time::Instant::now();
+                    let elapsed = now.duration_since(last_time).as_secs_f64();
+                    let hashrate = if elapsed > 0.0 {
+                        (current - last_attempts) as f64 / elapsed
+                    } else {
+                        0.0
+                    };
+
+                    let _ = out_tx_progress.blocking_send(ServerMessage::Progress {
+                        attempts: current,
+                        hashrate,
+                    });
+
+                    last_attempts = current;
+                    last_time = now;
+                }
+            }
+        }
+    });
+
+    // 2. Start Mining using Generic SingleObjectMode
+    let executor = CpuExecutor::new();
+    let mode = SingleObjectMode::new(object_index); // Check specific index (e.g. 0)
+    let config = MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_nonce);
+    let result = executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
+
+    cancel.store(true, Ordering::SeqCst);
+    let _ = progress_thread.join();
+
+    if let Some(res) = result {
+        let _ = out_tx.blocking_send(ServerMessage::MoveCallFound {
+            object_id: format!("0x{}", hex::encode(res.object_id.as_ref())),
+            object_index: res.object_index,
+            tx_digest: res.tx_digest.to_string(),
+            tx_bytes_base64: general_purpose::STANDARD.encode(&res.tx_bytes),
+            attempts: res.attempts,
+            gas_budget_used: res.gas_budget_used,
+        });
+    } else {
+        let last_nonce = total_attempts.load(Ordering::Relaxed);
+        let _ = out_tx.blocking_send(ServerMessage::Stopped {
+            attempts: last_nonce,
+            last_nonce,
+        });
+    }
+
+    Ok(())
 }
