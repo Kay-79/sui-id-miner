@@ -1,40 +1,62 @@
-import { useState, useCallback, useEffect } from "react";
-import "./App.css";
-import "./index.css";
+import { useState, useCallback, useEffect } from 'react'
+import './App.css'
+import './index.css'
 
-import type { MiningMode, MiningState, FoundResult } from "./types";
-import Header from "./components/Header";
-import Footer from "./components/Footer";
+import type { MiningMode, MiningState, FoundResult } from './types'
+import Header from './components/Header'
+import Footer from './components/Footer'
+import Docs from './components/Docs'
 // import ModeSwitcher from "./components/ModeSwitcher";
-import ConfigCard from "./components/ConfigCard";
-import MiningControl from "./components/MiningControl";
-import ResultsList from "./components/ResultsList";
-import { useWebSocketMiner } from "./hooks/useWebSocketMiner";
-import { useToast } from "./hooks/useToast";
-import { ToastContainer } from "./components/Toast";
+import ConfigCard from './components/ConfigCard'
+import MiningControl from './components/MiningControl'
+import ResultsList from './components/ResultsList'
+import { useWebSocketMiner } from './hooks/useWebSocketMiner'
+import { useSmoothStats } from './hooks/useSmoothStats'
+import { useToast } from './hooks/useToast'
+import { ToastContainer } from './components/Toast'
+import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
+import { Transaction } from '@mysten/sui/transactions'
+import { toBase64 } from '@mysten/sui/utils'
 
 function App() {
+    // UI State
+    const [showDocs, setShowDocs] = useState(false)
+
     // Config State
-    const [mode, _setMode] = useState<MiningMode>("PACKAGE");
-    const [prefix, setPrefix] = useState("");
+    const [mode, setMode] = useState<MiningMode>('PACKAGE')
+    const [prefix, setPrefix] = useState('')
 
     // Package Mode Specific Config
-    const [baseGasBudget, setBaseGasBudget] = useState(100000000);
+    const [baseGasBudget, setBaseGasBudget] = useState(100000000)
 
     // Package Mode: Module storage + Gas Object
-    const [modulesBase64, setModulesBase64] = useState<string[]>([]);
+    const [modulesBase64, setModulesBase64] = useState<string[]>([])
     const [sender, setSender] = useState(
-        "0x0000000000000000000000000000000000000000000000000000000000000000"
-    );
-    const [gasObjectId, setGasObjectId] = useState("");
-    const [gasObjectVersion, setGasObjectVersion] = useState("");
-    const [gasObjectDigest, setGasObjectDigest] = useState("");
+        '0x0000000000000000000000000000000000000000000000000000000000000000'
+    )
+    const [gasObjectId, setGasObjectId] = useState('')
+    const [lastGasVersion, setLastGasVersion] = useState<string | null>(null)
+    const [network, setNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('testnet')
+    const [threadCount, setThreadCount] = useState(0) // 0 = auto (use all cores)
+
+    // Gas Coin Mode: Split amounts (in MIST, 1 SUI = 1_000_000_000)
+    const [splitAmounts, setSplitAmounts] = useState<number[]>([1_000_000_000])
+
+    // Move Call Mode
+    const [targetIndex, setTargetIndex] = useState(0)
+    // Form Builder State
+    const [mcTarget, setMcTarget] = useState('')
+    const [mcTypeArgs, setMcTypeArgs] = useState<string[]>([])
+    const [mcArgs, setMcArgs] = useState<{ type: string; value: string }[]>([])
 
     // WebSocket Miner
-    const wsMiner = useWebSocketMiner();
+    const wsMiner = useWebSocketMiner()
+
+    // Smooth Stats
+    const smoothAttempts = useSmoothStats(wsMiner.progress, wsMiner.isRunning)
 
     // Toast
-    const { toasts, showToast, removeToast } = useToast();
+    const { toasts, showToast, removeToast } = useToast()
 
     // Results State
     const [state, setState] = useState<MiningState>({
@@ -43,229 +65,365 @@ function App() {
         hashrate: 0,
         startTime: null,
         foundResults: [],
-    });
+    })
 
     // Computed
-    const difficulty = prefix.length;
-    const estimatedAttempts = Math.pow(16, difficulty);
-    const isValidPrefix = prefix.length > 0 && /^[0-9a-fA-F]+$/.test(prefix);
+    const difficulty = prefix.length
+    const estimatedAttempts = Math.pow(16, difficulty)
+    const isValidPrefix = prefix.length > 0 && /^[0-9a-fA-F]+$/.test(prefix)
 
-    const isConfigValid =
-        mode === "ADDRESS"
-            ? isValidPrefix
-            : isValidPrefix &&
-              modulesBase64.length > 0 &&
-              gasObjectId &&
-              gasObjectVersion &&
-              gasObjectDigest;
+    const isConfigValid = mode === 'PACKAGE'
+        ? isValidPrefix && modulesBase64.length > 0 && gasObjectId
+        : mode === 'GAS_COIN'
+            ? isValidPrefix && splitAmounts.length > 0 && gasObjectId
+            : isValidPrefix && mcTarget && targetIndex >= 0
 
     // Track WebSocket results -> add to foundResults
     // This is a valid pattern: syncing external WebSocket state with React state
     useEffect(() => {
         if (wsMiner.packageResult) {
             const result: FoundResult = {
-                type: "PACKAGE",
+                type: 'PACKAGE',
                 packageId: wsMiner.packageResult.packageId,
                 txDigest: wsMiner.packageResult.txDigest,
                 txBytesBase64: wsMiner.packageResult.txBytesBase64,
+                gasObjectId: gasObjectId,
+                gasObjectVersion: lastGasVersion || undefined,
                 attempts: wsMiner.packageResult.attempts,
                 timestamp: Date.now(),
-            };
+            }
             // eslint-disable-next-line react-hooks/exhaustive-deps
             setState((prev) => ({
                 ...prev,
                 foundResults: [...prev.foundResults, result],
-            }));
+            }))
         }
-    }, [wsMiner.packageResult]);
+    }, [wsMiner.packageResult])
 
+    // Track Gas Coin results -> add to foundResults
     useEffect(() => {
-        if (wsMiner.addressResult) {
+        if (wsMiner.gasCoinResult) {
             const result: FoundResult = {
-                type: "ADDRESS",
-                address: wsMiner.addressResult.address,
-                private_key: wsMiner.addressResult.privateKey,
-                public_key: wsMiner.addressResult.publicKey,
-                attempts: wsMiner.addressResult.attempts,
+                type: 'GAS_COIN',
+                objectId: wsMiner.gasCoinResult.objectId,
+                objectIndex: wsMiner.gasCoinResult.objectIndex,
+                txDigest: wsMiner.gasCoinResult.txDigest,
+                txBytesBase64: wsMiner.gasCoinResult.txBytesBase64,
+                gasObjectId: gasObjectId,
+                gasObjectVersion: lastGasVersion || undefined,
+                splitAmounts: splitAmounts,
+                attempts: wsMiner.gasCoinResult.attempts,
                 timestamp: Date.now(),
-            };
-            // eslint-disable-next-line react-hooks/exhaustive-deps
+            }
             setState((prev) => ({
                 ...prev,
                 foundResults: [...prev.foundResults, result],
-            }));
+            }))
         }
-    }, [wsMiner.addressResult]);
+    }, [wsMiner.gasCoinResult])
+
+    // Track Move Call results -> add to foundResults
+    useEffect(() => {
+        if (wsMiner.moveCallResult) {
+            const result: FoundResult = {
+                type: 'MOVE_CALL',
+                objectId: wsMiner.moveCallResult.objectId,
+                objectIndex: wsMiner.moveCallResult.objectIndex,
+                txDigest: wsMiner.moveCallResult.txDigest,
+                txBytesBase64: wsMiner.moveCallResult.txBytesBase64,
+                attempts: wsMiner.moveCallResult.attempts,
+                timestamp: Date.now(),
+            }
+            setState((prev) => ({
+                ...prev,
+                foundResults: [...prev.foundResults, result],
+            }))
+        }
+    }, [wsMiner.moveCallResult])
+
+    // Show toast on WS error
+    useEffect(() => {
+        if (wsMiner.error) {
+            showToast(wsMiner.error, 'error')
+        }
+    }, [wsMiner.error, showToast])
 
     // Actions
-    const startMining = useCallback(() => {
+    const startMining = useCallback(async () => {
         // Validate and show toast for missing fields
         if (!wsMiner.isConnected) {
-            showToast("Please connect to the server first!", "error");
-            return;
+            showToast('Please connect to the server first!', 'error')
+            return
         }
 
         if (!isValidPrefix) {
-            showToast("Please enter a valid hex prefix!", "error");
-            return;
+            showToast('Please enter a valid hex prefix!', 'error')
+            return
         }
 
-        if (mode === "PACKAGE") {
+        if (mode === 'PACKAGE') {
             // Check if sender is zero address
             if (/^0x0+$/.test(sender)) {
-                showToast("Please set Sender Address!", "error");
-                return;
+                showToast('Please set Sender Address!', 'error')
+                return
             }
             if (modulesBase64.length === 0) {
-                showToast("Please upload .mv module files!", "error");
-                return;
+                showToast('Please upload .mv module files!', 'error')
+                return
             }
             if (!gasObjectId) {
-                showToast("Please enter Gas Object ID or change network!", "error");
-                return;
+                showToast('Please enter Gas Object ID!', 'error')
+                return
             }
-            if (!gasObjectVersion) {
-                showToast("Gas Object Version is missing!", "error");
-                return;
+
+            // Auto-fetch gas object version/digest right before mining
+            showToast('Fetching gas object details...', 'info')
+
+            try {
+                const client = new SuiClient({ url: getFullnodeUrl(network) })
+                const data = await client.getObject({ id: gasObjectId })
+
+                if (!data.data) {
+                    showToast('Gas object not found!', 'error')
+                    return
+                }
+
+                const gasVersion = data.data.version
+                const gasDigest = data.data.digest
+
+                // Save version for result tracking
+                setLastGasVersion(gasVersion)
+
+                showToast(`Gas object verified: v${gasVersion}`, 'success')
+
+                // Start mining - hook auto-tracks epoch (gas digest) and resumes nonce
+                wsMiner.startPackageMining({
+                    prefix,
+                    modulesBase64,
+                    sender,
+                    gasBudget: baseGasBudget,
+                    gasPrice: 1000,
+                    gasObjectId,
+                    gasObjectVersion: gasVersion,
+                    gasObjectDigest: gasDigest,
+                    threads: threadCount > 0 ? threadCount : undefined,
+                })
+            } catch (e: any) {
+                showToast('Failed to fetch gas object: ' + e.message, 'error')
             }
-            if (!gasObjectDigest) {
-                showToast("Gas Object Digest is missing!", "error");
-                return;
-            }
+            return
         }
 
-        if (mode === "ADDRESS") {
-            wsMiner.startAddressMining({ prefix });
-        } else {
-            wsMiner.startPackageMining({
+        if (mode === 'GAS_COIN') {
+            // Check if sender is zero address
+            if (/^0x0+$/.test(sender)) {
+                showToast('Please set Sender Address!', 'error')
+                return
+            }
+            if (splitAmounts.length === 0 || splitAmounts.every(a => a <= 0)) {
+                showToast('Please set split amounts!', 'error')
+                return
+            }
+            if (!gasObjectId) {
+                showToast('Please enter Gas Object ID!', 'error')
+                return
+            }
+
+            showToast('Fetching gas object details...', 'info')
+
+            try {
+                const client = new SuiClient({ url: getFullnodeUrl(network) })
+                const data = await client.getObject({ id: gasObjectId })
+
+                if (!data.data) {
+                    showToast('Gas object not found!', 'error')
+                    return
+                }
+
+                const gasVersion = data.data.version
+                const gasDigest = data.data.digest
+
+                setLastGasVersion(gasVersion)
+                showToast(`Gas object verified: v${gasVersion}`, 'success')
+
+                wsMiner.startGasCoinMining({
+                    prefix,
+                    splitAmounts: splitAmounts.filter(a => a > 0),
+                    sender,
+                    gasBudget: baseGasBudget,
+                    gasPrice: 1000,
+                    gasObjectId,
+                    gasObjectVersion: gasVersion,
+                    gasObjectDigest: gasDigest,
+                    threads: threadCount > 0 ? threadCount : undefined,
+                })
+            } catch (e: any) {
+                showToast('Failed to fetch gas object: ' + e.message, 'error')
+            }
+            return
+        }
+
+
+
+        if (mode === 'MOVE_CALL') {
+            let bytes = ''
+
+            // Build from Form if no bytes provided
+            if (!bytes && mcTarget) {
+                try {
+                    const tx = new Transaction()
+                    const args = mcArgs.map(arg => {
+                        if (arg.type === 'object') return tx.object(arg.value)
+                        if (arg.type === 'bool') return tx.pure.bool(arg.value === 'true')
+                        if (arg.type === 'number') return tx.pure.u64(arg.value)
+                        return tx.pure.string(arg.value)
+                    })
+
+                    tx.moveCall({
+                        target: mcTarget,
+                        typeArguments: mcTypeArgs,
+                        arguments: args
+                    })
+                    tx.setSender(sender)
+                    tx.setGasBudget(baseGasBudget)
+
+                    // Fetch Gas Object Details
+                    const client = new SuiClient({ url: getFullnodeUrl(network) })
+                    const coinObj = await client.getObject({ id: gasObjectId })
+
+                    if (coinObj.data) {
+                        tx.setGasPayment([{
+                            objectId: coinObj.data.objectId,
+                            version: coinObj.data.version,
+                            digest: coinObj.data.digest
+                        }])
+                    } else {
+                        throw new Error(`Gas object ${gasObjectId} not found`)
+                    }
+
+                    const builtBytes = await tx.build({ client })
+                    bytes = toBase64(builtBytes)
+                } catch (e: any) {
+                    showToast(`Build Failed: ${e.message}`, 'error')
+                    return
+                }
+            }
+
+            if (!bytes) {
+                showToast('Please enter Transaction Bytes or fill the Builder form!', 'error')
+                return
+            }
+
+            wsMiner.startMoveCallMining({
                 prefix,
-                modulesBase64,
-                sender,
-                gasBudget: baseGasBudget,
-                gasPrice: 1000,
-                gasObjectId,
-                gasObjectVersion,
-                gasObjectDigest,
-            });
+                txBytesBase64: bytes,
+                objectIndex: targetIndex,
+                threads: threadCount > 0 ? threadCount : undefined,
+            })
+            return
         }
     }, [
         isValidPrefix,
         mode,
         prefix,
         modulesBase64,
+        splitAmounts,
+        targetIndex,
         sender,
         baseGasBudget,
         gasObjectId,
-        gasObjectVersion,
-        gasObjectDigest,
+        network,
+        threadCount,
         wsMiner,
         showToast,
-    ]);
+    ])
 
     const stopMining = useCallback(() => {
-        wsMiner.stopMining();
-    }, [wsMiner]);
+        wsMiner.stopMining()
+    }, [wsMiner])
 
     const clearResults = useCallback(() => {
-        setState((prev) => ({ ...prev, foundResults: [] }));
-    }, []);
+        setState((prev) => ({ ...prev, foundResults: [] }))
+    }, [])
 
     // Compute progress
-    const attempts = wsMiner.progress?.attempts || 0;
-    const hashrate = wsMiner.progress?.hashrate || 0;
-    const progress = Math.min((attempts / estimatedAttempts) * 100, 100);
+    const hashrate = wsMiner.progress?.hashrate || 0
+
+    // Probability formula: 1 - e^(-attempts/difficulty)
+    // We use exponential decay for accurate probability
+    const difficultySpace = Math.pow(16, difficulty)
+    const probability = 1 - Math.exp(-smoothAttempts / difficultySpace)
+    const progressPercent = probability * 100
 
     return (
         <div className="min-h-screen p-4 md:p-8 bg-[var(--light)]">
             <ToastContainer toasts={toasts} removeToast={removeToast} />
-            <Header />
+            <Header showDocs={showDocs} setShowDocs={setShowDocs} />
 
             <div className="max-w-4xl mx-auto grid gap-6">
-                {/* Connection Status */}
-                <div className="brutal-card p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <span
-                            className={`w-3 h-3 rounded-full ${
-                                wsMiner.isConnected ? "bg-green-500" : "bg-red-500"
-                            }`}
-                        ></span>
-                        <span className="font-bold">
-                            {wsMiner.isConnected
-                                ? "🔗 Connected to Local Server"
-                                : "⚠️ Not Connected"}
-                        </span>
-                    </div>
-                    <div className="flex gap-2">
-                        {!wsMiner.isConnected ? (
-                            <button
-                                onClick={() => wsMiner.connect()}
-                                className="brutal-btn bg-[var(--primary)] text-white text-sm py-1 px-3"
-                            >
-                                Connect
-                            </button>
-                        ) : (
-                            <button
-                                onClick={() => wsMiner.disconnect()}
-                                className="brutal-btn bg-gray-200 text-black text-sm py-1 px-3"
-                            >
-                                Disconnect
-                            </button>
-                        )}
-                    </div>
-                </div>
 
-                {wsMiner.error && (
-                    <div className="brutal-card p-4 bg-red-50 border-red-500 text-red-700">
-                        ❌ {wsMiner.error}
-                    </div>
+                {showDocs ? (
+                    <Docs />
+                ) : (
+                    <>
+                        <ConfigCard
+                            mode={mode}
+                            setMode={setMode}
+                            prefix={prefix}
+                            setPrefix={setPrefix}
+                            baseGasBudget={baseGasBudget}
+                            setBaseGasBudget={setBaseGasBudget}
+                            isRunning={wsMiner.isRunning}
+                            difficulty={difficulty}
+                            estimatedAttempts={estimatedAttempts}
+                            isValidPrefix={isValidPrefix}
+                            modulesBase64={modulesBase64}
+                            setModulesBase64={setModulesBase64}
+                            sender={sender}
+                            setSender={setSender}
+                            gasObjectId={gasObjectId}
+                            setGasObjectId={setGasObjectId}
+                            network={network}
+                            setNetwork={setNetwork}
+                            threadCount={threadCount}
+                            setThreadCount={setThreadCount}
+                            splitAmounts={splitAmounts}
+                            setSplitAmounts={setSplitAmounts}
+                            targetIndex={targetIndex}
+                            setTargetIndex={setTargetIndex}
+                            mcTarget={mcTarget}
+                            setMcTarget={setMcTarget}
+                            mcTypeArgs={mcTypeArgs}
+                            setMcTypeArgs={setMcTypeArgs}
+                            mcArgs={mcArgs}
+                            setMcArgs={setMcArgs}
+                        />
+
+                        <MiningControl
+                            isRunning={wsMiner.isRunning}
+                            isConfigValid={!!(isConfigValid && wsMiner.isConnected)}
+                            isConnected={wsMiner.isConnected}
+                            onConnect={() => wsMiner.connect()}
+                            startMining={startMining}
+                            stopMining={stopMining}
+                            hashrate={hashrate}
+                            attempts={smoothAttempts}
+                            progress={progressPercent}
+                        />
+
+                        <ResultsList
+                            results={state.foundResults}
+                            clearResults={clearResults}
+                            sender={sender}
+                            network={network}
+                        />
+                    </>
                 )}
 
-                {/* <ModeSwitcher mode={mode} isRunning={wsMiner.isRunning} setMode={setMode} /> */}
-
-                <ConfigCard
-                    mode={mode}
-                    prefix={prefix}
-                    setPrefix={setPrefix}
-                    baseGasBudget={baseGasBudget}
-                    setBaseGasBudget={setBaseGasBudget}
-                    isRunning={wsMiner.isRunning}
-                    difficulty={difficulty}
-                    estimatedAttempts={estimatedAttempts}
-                    isValidPrefix={isValidPrefix}
-                    modulesBase64={modulesBase64}
-                    setModulesBase64={setModulesBase64}
-                    sender={sender}
-                    setSender={setSender}
-                    gasObjectId={gasObjectId}
-                    setGasObjectId={setGasObjectId}
-                    gasObjectVersion={gasObjectVersion}
-                    setGasObjectVersion={setGasObjectVersion}
-                    gasObjectDigest={gasObjectDigest}
-                    setGasObjectDigest={setGasObjectDigest}
-                />
-
-                <MiningControl
-                    mode={mode}
-                    isRunning={wsMiner.isRunning}
-                    isConfigValid={!!(isConfigValid && wsMiner.isConnected)}
-                    startMining={startMining}
-                    stopMining={stopMining}
-                    hashrate={hashrate}
-                    attempts={attempts}
-                    progress={progress}
-                />
-
-                <ResultsList
-                    mode={mode}
-                    results={state.foundResults}
-                    clearResults={clearResults}
-                    sender={sender}
-                />
-
-                <Footer mode={mode} />
+                <Footer />
             </div>
         </div>
-    );
+    )
 }
 
-export default App;
+export default App

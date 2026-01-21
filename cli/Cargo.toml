@@ -2,6 +2,11 @@
 name = "sui-id-miner"
 version = "0.1.0"
 edition = "2024"
+description = "A multi-threaded Sui ID Miner for finding vanity Object IDs"
+license = "MIT"
+repository = "https://github.com/Kay-79/sui-id-miner"
+keywords = ["sui", "address", "vanity", "objectid"]
+categories = ["command-line-utilities", "cryptography"]
 
 [features]
 default = ["cpu"]

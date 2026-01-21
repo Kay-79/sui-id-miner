@@ -53,6 +53,7 @@ impl ProgressDisplay {
         self.bar.tick();
     }
 
+    #[allow(dead_code)]
     pub fn finish_with_success(&self, attempts: u64) {
         let elapsed = self.start_time.elapsed();
         let hashrate = attempts as f64 / elapsed.as_secs_f64();
@@ -65,6 +66,7 @@ impl ProgressDisplay {
         ));
     }
 
+    #[allow(dead_code)]
     pub fn finish_with_message(&self, msg: &str) {
         self.bar.finish_with_message(msg.to_string());
     }

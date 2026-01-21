@@ -1,22 +1,24 @@
-export type MiningMode = 'PACKAGE' | 'ADDRESS'
+export type MiningMode = 'PACKAGE' | 'GAS_COIN' | 'MOVE_CALL'
 
 export interface FoundResult {
     // Common
-    type?: 'ADDRESS' | 'PACKAGE'
+    type?: 'PACKAGE' | 'GAS_COIN' | 'MOVE_CALL'
     attempts: number
     timestamp: number
-    
-    // Address Mode
-    address?: string
-    private_key?: string
-    public_key?: string
-
-    // Package Mode (WebSocket)
-    packageId?: string
     txDigest?: string
     txBytesBase64?: string
-    
-    // Package Mode (Legacy WASM)
+    gasObjectId?: string
+    gasObjectVersion?: string
+
+    // Package Mode
+    packageId?: string
+
+    // Gas Coin Mode
+    objectId?: string
+    objectIndex?: number
+    splitAmounts?: number[]
+
+    // Legacy fields (WASM)
     package_id?: string
     tx_digest?: string
     tx_bytes_hex?: string
@@ -31,3 +33,4 @@ export interface MiningState {
     startTime: number | null
     foundResults: FoundResult[]
 }
+

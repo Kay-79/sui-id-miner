@@ -23,16 +23,23 @@ export function ToastContainer({ toasts, removeToast }: ToastContainerProps) {
 
     const getIcon = (type: Toast['type']) => {
         switch (type) {
-            case 'error': return '❌'
-            case 'success': return '✅'
-            case 'warning': return '⚠️'
-            case 'info': return 'ℹ️'
+            case 'error':
+                return '❌'
+            case 'success':
+                return '✅'
+            case 'warning':
+                return '⚠️'
+            case 'info':
+                return 'ℹ️'
         }
     }
 
     return (
-        <div className="fixed top-4 right-4 flex flex-col gap-2 max-w-sm pointer-events-none" style={{ zIndex: 9999 }}>
-            {toasts.map(toast => (
+        <div
+            className="fixed top-4 right-4 flex flex-col gap-2 max-w-sm pointer-events-none"
+            style={{ zIndex: 9999 }}
+        >
+            {toasts.map((toast) => (
                 <div
                     key={toast.id}
                     className={`${getToastStyles(toast.type)} text-white px-4 py-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-2 animate-slide-in cursor-pointer pointer-events-auto`}
