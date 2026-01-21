@@ -1,5 +1,5 @@
 {
-  "name": "sui-vanity-id-web",
+  "name": "sui-id-miner-web",
   "private": true,
   "version": "0.0.0",
   "type": "module",

@@ -4,7 +4,7 @@ export default function Docs() {
             <div className="border-b-4 border-black pb-4">
                 <h2 className="heading-lg">User Guide</h2>
                 <p className="text-gray-600 mt-2">
-                    Learn how to configure and use Sui Vanity ID effectively.
+                    Learn how to configure and use Sui ID Miner effectively.
                 </p>
             </div>
 

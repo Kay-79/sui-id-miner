@@ -29,7 +29,7 @@ use sui_sdk::SuiClientBuilder;
 use sui_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress};
 
 #[derive(Parser, Debug)]
-#[command(name = "sui-vanity-id")]
+#[command(name = "sui-id-miner")]
 #[command(author, version, about, long_about = None)]
 struct Args {
     #[command(subcommand)]

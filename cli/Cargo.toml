@@ -1,10 +1,10 @@
 [package]
-name = "sui-vanity-id"
+name = "sui-id-miner"
 version = "0.1.0"
 edition = "2024"
-description = "A multi-threaded Sui Vanity ID for finding vanity Object IDs"
+description = "A multi-threaded Sui ID Miner for finding vanity Object IDs"
 license = "MIT"
-repository = "https://github.com/Kay-79/sui-vanity-id"
+repository = "https://github.com/Kay-79/sui-id-miner"
 keywords = ["sui", "address", "vanity", "objectid"]
 categories = ["command-line-utilities", "cryptography"]
 
@@ -42,7 +42,7 @@ fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", package = "fast
 shared-crypto = { git = "https://github.com/MystenLabs/sui", package = "shared-crypto", branch = "mainnet" }
 
 [[bin]]
-name = "sui-vanity-id"
+name = "sui-id-miner"
 path = "src/main.rs"
 
 [lib]

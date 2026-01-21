@@ -1,4 +1,4 @@
-// WebSocket Miner Hook - Connects to local sui-vanity-id server
+// WebSocket Miner Hook - Connects to local sui-id-miner server
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 
@@ -129,7 +129,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
         const ws = new WebSocket(`ws://localhost:${port}`)
 
         ws.onopen = () => {
-            console.log('[WS] Connected to sui-vanity-id server')
+            console.log('[WS] Connected to sui-id-miner server')
             setIsConnected(true)
             setError(null)
         }
@@ -142,7 +142,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
 
         ws.onerror = () => {
             console.error('[WS] Connection error')
-            setError('Please start sui-vanity-id server first')
+            setError('Please start sui-id-miner server first')
             setIsConnected(false)
         }
 

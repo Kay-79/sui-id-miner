@@ -1,6 +1,6 @@
-# User Guide - Sui Vanity ID
+# User Guide - Sui ID Miner
 
-This guide provides detailed instructions on how to configure and use the Sui Vanity ID in both CLI and Web modes.
+This guide provides detailed instructions on how to configure and use the Sui ID Miner in both CLI and Web modes.
 
 ## 🖥️ CLI Usage
 

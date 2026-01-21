@@ -9,7 +9,7 @@ export default function Header({ showDocs, setShowDocs }: HeaderProps) {
     const [stars, setStars] = useState<number | null>(null)
 
     useEffect(() => {
-        fetch('https://api.github.com/repos/Kay-79/sui-vanity-id')
+        fetch('https://api.github.com/repos/Kay-79/sui-id-miner')
             .then((res) => res.json())
             .then((data) => {
                 if (data.stargazers_count !== undefined) {
@@ -24,8 +24,8 @@ export default function Header({ showDocs, setShowDocs }: HeaderProps) {
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="text-center md:text-left">
                     <h1 className="heading-xl flex items-center justify-center md:justify-start gap-3">
-                        <img src="/logo.svg" alt="Sui Vanity ID" className="w-12 h-12" />
-                        Sui Vanity ID
+                        <img src="/logo.svg" alt="Sui ID Miner" className="w-12 h-12" />
+                        Sui ID Miner
                     </h1>
                     <p className="text-lg text-gray-600 font-medium mt-2">
                         Generate Vanity IDs on Sui
@@ -41,7 +41,7 @@ export default function Header({ showDocs, setShowDocs }: HeaderProps) {
                     </button>
 
                     <a
-                        href="https://github.com/Kay-79/sui-vanity-id"
+                        href="https://github.com/Kay-79/sui-id-miner"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="github-badge"

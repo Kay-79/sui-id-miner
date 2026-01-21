@@ -1,4 +1,4 @@
-# Sui Vanity ID
+# Sui ID Miner
 
 **A high-performance CPU miner for finding various vanity Object IDs on the Sui blockchain.**
 
@@ -29,7 +29,7 @@ Build the tool and check the help menu:
 ```bash
 cd cli
 cargo build --release
-./target/release/sui-vanity-id --help
+./target/release/sui-id-miner --help
 ```
 
 See [GUIDE.md](GUIDE.md) for command examples.
