@@ -1,4 +1,3 @@
-
 interface CommonConfigProps {
     prefix: string
     setPrefix: (prefix: string) => void
@@ -6,6 +5,8 @@ interface CommonConfigProps {
     estimatedAttempts: number
     isValidPrefix: boolean
     isRunning: boolean
+    useGpu?: boolean
+    setUseGpu?: (useGpu: boolean) => void
 }
 
 // Format number utility
@@ -22,7 +23,9 @@ export default function CommonConfig({
     difficulty,
     estimatedAttempts,
     isValidPrefix,
-    isRunning
+    isRunning,
+    useGpu = false,
+    setUseGpu,
 }: CommonConfigProps) {
     return (
         <div>
@@ -52,6 +55,27 @@ export default function CommonConfig({
                 <span className="text-sm text-gray-600 font-medium">
                     ~{formatNumber(estimatedAttempts)} attempts
                 </span>
+            </div>
+
+            {/* GPU Toggle */}
+            <div className="mt-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={useGpu}
+                        onChange={(e) => setUseGpu?.(e.target.checked)}
+                        disabled={isRunning}
+                        className="w-4 h-4"
+                    />
+                    <span className="font-bold uppercase text-sm tracking-wide">
+                        ⚡ Use GPU Acceleration
+                    </span>
+                </label>
+                {useGpu && (
+                    <div className="mt-1 text-xs text-[var(--success)] font-medium">
+                        GPU mining mode enabled (requires compatible hardware)
+                    </div>
+                )}
             </div>
         </div>
     )

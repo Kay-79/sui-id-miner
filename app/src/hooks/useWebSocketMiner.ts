@@ -13,6 +13,7 @@ interface PackageMiningConfig {
     gasObjectDigest: string
     threads?: number
     nonceOffset?: number // Resume from this nonce
+    gpu?: boolean
 }
 
 interface GasCoinMiningConfig {
@@ -26,6 +27,7 @@ interface GasCoinMiningConfig {
     gasObjectDigest: string
     threads?: number
     nonceOffset?: number
+    gpu?: boolean
 }
 
 interface MoveCallMiningConfig {
@@ -34,6 +36,7 @@ interface MoveCallMiningConfig {
     objectIndex: number
     threads?: number
     nonceOffset?: number
+    gpu?: boolean
 }
 
 interface MoveCallResult {
@@ -285,6 +288,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
                 gas_object_digest: config.gasObjectDigest,
                 threads: config.threads,
                 nonce_offset: nonceToUse,
+                gpu: config.gpu,
             }
 
             setPackageResult(null)
@@ -350,6 +354,7 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
                 gas_object_digest: config.gasObjectDigest,
                 threads: config.threads,
                 nonce_offset: nonceToUse,
+                gpu: config.gpu,
             }
 
             setPackageResult(null)
@@ -361,31 +366,29 @@ export function useWebSocketMiner(): UseWebSocketMinerReturn {
         [lastEpoch, lastNonce]
     )
 
-    const startMoveCallMining = useCallback(
-        (config: MoveCallMiningConfig) => {
-            if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-                setError('Not connected to server')
-                return
-            }
+    const startMoveCallMining = useCallback((config: MoveCallMiningConfig) => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            setError('Not connected to server')
+            return
+        }
 
-            const message = {
-                type: 'start_move_call_mining',
-                prefix: config.prefix,
-                tx_bytes_base64: config.txBytesBase64,
-                object_index: config.objectIndex,
-                threads: config.threads,
-                nonce_offset: config.nonceOffset || 0,
-            }
+        const message = {
+            type: 'start_move_call_mining',
+            prefix: config.prefix,
+            tx_bytes_base64: config.txBytesBase64,
+            object_index: config.objectIndex,
+            threads: config.threads,
+            nonce_offset: config.nonceOffset || 0,
+            gpu: config.gpu,
+        }
 
-            setPackageResult(null)
-            setGasCoinResult(null)
-            setMoveCallResult(null)
-            setAddressResult(null)
-            setError(null)
-            wsRef.current.send(JSON.stringify(message))
-        },
-        []
-    )
+        setPackageResult(null)
+        setGasCoinResult(null)
+        setMoveCallResult(null)
+        setAddressResult(null)
+        setError(null)
+        wsRef.current.send(JSON.stringify(message))
+    }, [])
 
     const stopMining = useCallback(() => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {

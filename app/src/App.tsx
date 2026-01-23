@@ -25,6 +25,7 @@ function App() {
     // Config State
     const [mode, setMode] = useState<MiningMode>('PACKAGE')
     const [prefix, setPrefix] = useState('')
+    const [useGpu, setUseGpu] = useState(false)
 
     // Package Mode Specific Config
     const [baseGasBudget, setBaseGasBudget] = useState(100000000)
@@ -72,11 +73,12 @@ function App() {
     const estimatedAttempts = Math.pow(16, difficulty)
     const isValidPrefix = prefix.length > 0 && /^[0-9a-fA-F]+$/.test(prefix)
 
-    const isConfigValid = mode === 'PACKAGE'
-        ? isValidPrefix && modulesBase64.length > 0 && gasObjectId
-        : mode === 'GAS_COIN'
-            ? isValidPrefix && splitAmounts.length > 0 && gasObjectId
-            : isValidPrefix && mcTarget && targetIndex >= 0
+    const isConfigValid =
+        mode === 'PACKAGE'
+            ? isValidPrefix && modulesBase64.length > 0 && gasObjectId
+            : mode === 'GAS_COIN'
+              ? isValidPrefix && splitAmounts.length > 0 && gasObjectId
+              : isValidPrefix && mcTarget && targetIndex >= 0
 
     // Track WebSocket results -> add to foundResults
     // This is a valid pattern: syncing external WebSocket state with React state
@@ -207,6 +209,7 @@ function App() {
                     gasObjectVersion: gasVersion,
                     gasObjectDigest: gasDigest,
                     threads: threadCount > 0 ? threadCount : undefined,
+                    gpu: useGpu,
                 })
             } catch (e: any) {
                 showToast('Failed to fetch gas object: ' + e.message, 'error')
@@ -220,7 +223,7 @@ function App() {
                 showToast('Please set Sender Address!', 'error')
                 return
             }
-            if (splitAmounts.length === 0 || splitAmounts.every(a => a <= 0)) {
+            if (splitAmounts.length === 0 || splitAmounts.every((a) => a <= 0)) {
                 showToast('Please set split amounts!', 'error')
                 return
             }
@@ -248,7 +251,7 @@ function App() {
 
                 wsMiner.startGasCoinMining({
                     prefix,
-                    splitAmounts: splitAmounts.filter(a => a > 0),
+                    splitAmounts: splitAmounts.filter((a) => a > 0),
                     sender,
                     gasBudget: baseGasBudget,
                     gasPrice: 1000,
@@ -256,14 +259,13 @@ function App() {
                     gasObjectVersion: gasVersion,
                     gasObjectDigest: gasDigest,
                     threads: threadCount > 0 ? threadCount : undefined,
+                    gpu: useGpu,
                 })
             } catch (e: any) {
                 showToast('Failed to fetch gas object: ' + e.message, 'error')
             }
             return
         }
-
-
 
         if (mode === 'MOVE_CALL') {
             let bytes = ''
@@ -272,7 +274,7 @@ function App() {
             if (!bytes && mcTarget) {
                 try {
                     const tx = new Transaction()
-                    const args = mcArgs.map(arg => {
+                    const args = mcArgs.map((arg) => {
                         if (arg.type === 'object') return tx.object(arg.value)
                         if (arg.type === 'bool') return tx.pure.bool(arg.value === 'true')
                         if (arg.type === 'number') return tx.pure.u64(arg.value)
@@ -282,7 +284,7 @@ function App() {
                     tx.moveCall({
                         target: mcTarget,
                         typeArguments: mcTypeArgs,
-                        arguments: args
+                        arguments: args,
                     })
                     tx.setSender(sender)
                     tx.setGasBudget(baseGasBudget)
@@ -292,11 +294,13 @@ function App() {
                     const coinObj = await client.getObject({ id: gasObjectId })
 
                     if (coinObj.data) {
-                        tx.setGasPayment([{
-                            objectId: coinObj.data.objectId,
-                            version: coinObj.data.version,
-                            digest: coinObj.data.digest
-                        }])
+                        tx.setGasPayment([
+                            {
+                                objectId: coinObj.data.objectId,
+                                version: coinObj.data.version,
+                                digest: coinObj.data.digest,
+                            },
+                        ])
                     } else {
                         throw new Error(`Gas object ${gasObjectId} not found`)
                     }
@@ -319,6 +323,7 @@ function App() {
                 txBytesBase64: bytes,
                 objectIndex: targetIndex,
                 threads: threadCount > 0 ? threadCount : undefined,
+                gpu: useGpu,
             })
             return
         }
@@ -361,7 +366,6 @@ function App() {
             <Header showDocs={showDocs} setShowDocs={setShowDocs} />
 
             <div className="max-w-4xl mx-auto grid gap-6">
-
                 {showDocs ? (
                     <Docs />
                 ) : (
@@ -377,6 +381,8 @@ function App() {
                             difficulty={difficulty}
                             estimatedAttempts={estimatedAttempts}
                             isValidPrefix={isValidPrefix}
+                            useGpu={useGpu}
+                            setUseGpu={setUseGpu}
                             modulesBase64={modulesBase64}
                             setModulesBase64={setModulesBase64}
                             sender={sender}
