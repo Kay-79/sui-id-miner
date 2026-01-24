@@ -69,6 +69,14 @@ impl TargetChecker {
     pub fn prefix_bytes(&self) -> Vec<u8> {
         self.prefix_bytes.clone()
     }
+
+    pub fn full_bytes(&self) -> usize {
+        self.prefix_len / 2
+    }
+
+    pub fn has_half_byte(&self) -> bool {
+        self.prefix_len % 2 == 1
+    }
 }
 
 #[cfg(test)]
@@ -176,4 +184,3 @@ mod tests {
         assert!(result.is_err());
     }
 }
-

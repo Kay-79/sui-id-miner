@@ -1,6 +1,8 @@
 //! WebSocket Server for Web Mining Interface
 
-use crate::mining::{CpuExecutor, GasCoinMode, MinerConfig, MinerExecutor, PackageMode, SingleObjectMode};
+use crate::mining::{
+    CpuExecutor, GasCoinMode, MinerConfig, MinerExecutor, PackageMode, SingleObjectMode,
+};
 use crate::module_order::sort_modules_by_dependency;
 use crate::target::TargetChecker;
 
@@ -19,7 +21,10 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use sui_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress};
 
-use crate::common::{create_tx_template, create_split_tx_template, create_template_from_bytes, format_large_number, randomize_gas_budget};
+use crate::common::{
+    create_split_tx_template, create_template_from_bytes, create_tx_template, format_large_number,
+    randomize_gas_budget,
+};
 use rand::Rng;
 use rand::rngs::OsRng;
 
@@ -40,6 +45,8 @@ pub enum ClientMessage {
         threads: Option<usize>,
         #[serde(default)]
         nonce_offset: u64, // Resume from this nonce
+        #[serde(default)]
+        gpu: bool,
     },
     #[serde(rename = "start_gas_coin_mining")]
     StartGasCoinMining {
@@ -54,6 +61,8 @@ pub enum ClientMessage {
         threads: Option<usize>,
         #[serde(default)]
         nonce_offset: u64,
+        #[serde(default)]
+        gpu: bool,
     },
     #[serde(rename = "start_move_call_mining")]
     StartMoveCallMining {
@@ -64,6 +73,8 @@ pub enum ClientMessage {
         threads: Option<usize>,
         #[serde(default)]
         nonce_offset: u64,
+        #[serde(default)]
+        gpu: bool,
     },
     #[serde(rename = "stop_mining")]
     StopMining,
@@ -201,6 +212,7 @@ async fn handle_connection(
                         gas_object_digest,
                         threads,
                         nonce_offset,
+                        gpu,
                     }) => {
                         // Use client modules if provided, otherwise fallback to default
                         let mut mut_modules = modules_base64
@@ -266,6 +278,7 @@ async fn handle_connection(
                                 gas_object_digest,
                                 thread_count,
                                 nonce_offset,
+                                gpu,
                                 cancel_clone,
                                 out_tx_clone,
                             );
@@ -286,6 +299,7 @@ async fn handle_connection(
                         gas_object_digest,
                         threads,
                         nonce_offset,
+                        gpu,
                     }) => {
                         if split_amounts.is_empty() {
                             let _ = out_tx
@@ -313,6 +327,7 @@ async fn handle_connection(
                                 gas_object_digest,
                                 thread_count,
                                 nonce_offset,
+                                gpu,
                                 cancel_clone,
                                 out_tx_clone,
                             );
@@ -328,6 +343,7 @@ async fn handle_connection(
                         object_index,
                         threads,
                         nonce_offset,
+                        gpu,
                     }) => {
                         cancel.store(false, Ordering::SeqCst);
                         let cancel_clone = cancel.clone();
@@ -341,6 +357,7 @@ async fn handle_connection(
                                 object_index,
                                 thread_count,
                                 nonce_offset,
+                                gpu,
                                 cancel_clone,
                                 out_tx_clone,
                             );
@@ -388,6 +405,7 @@ fn run_package_mining(
     gas_object_digest: String,
     threads: usize,
     mut start_nonce: u64,
+    gpu: bool,
     cancel: Arc<AtomicBool>,
     out_tx: mpsc::Sender<ServerMessage>,
 ) -> Result<()> {
@@ -481,11 +499,35 @@ fn run_package_mining(
         }
     });
 
-
-    let executor = CpuExecutor::new();
     let mode = PackageMode;
     let config = MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_nonce);
-    let result = executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
+
+    let result = if gpu {
+        #[cfg(feature = "gpu")]
+        {
+            let executor = crate::mining::GpuExecutor::new();
+            executor.mine(
+                mode,
+                &config,
+                &target,
+                total_attempts.clone(),
+                cancel.clone(),
+            )?
+        }
+        #[cfg(not(feature = "gpu"))]
+        {
+            anyhow::bail!("GPU feature is not enabled. Compile with --features gpu");
+        }
+    } else {
+        let executor = CpuExecutor::new();
+        executor.mine(
+            mode,
+            &config,
+            &target,
+            total_attempts.clone(),
+            cancel.clone(),
+        )
+    };
 
     cancel.store(true, Ordering::SeqCst);
     let _ = progress_thread.join();
@@ -525,6 +567,7 @@ fn run_gas_coin_mining(
     gas_object_digest: String,
     threads: usize,
     mut start_nonce: u64,
+    gpu: bool,
     cancel: Arc<AtomicBool>,
     out_tx: mpsc::Sender<ServerMessage>,
 ) -> Result<()> {
@@ -620,11 +663,35 @@ fn run_gas_coin_mining(
         }
     });
 
-
-    let executor = CpuExecutor::new();
     let mode = GasCoinMode::new(num_outputs);
     let config = MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_nonce);
-    let result = executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
+
+    let result = if gpu {
+        #[cfg(feature = "gpu")]
+        {
+            let executor = crate::mining::GpuExecutor::new();
+            executor.mine(
+                mode,
+                &config,
+                &target,
+                total_attempts.clone(),
+                cancel.clone(),
+            )?
+        }
+        #[cfg(not(feature = "gpu"))]
+        {
+            anyhow::bail!("GPU feature is not enabled. Compile with --features gpu");
+        }
+    } else {
+        let executor = CpuExecutor::new();
+        executor.mine(
+            mode,
+            &config,
+            &target,
+            total_attempts.clone(),
+            cancel.clone(),
+        )
+    };
 
     cancel.store(true, Ordering::SeqCst);
     let _ = progress_thread.join();
@@ -659,6 +726,7 @@ fn run_move_call_mining(
     object_index: u16,
     threads: usize,
     start_nonce: u64,
+    gpu: bool,
     cancel: Arc<AtomicBool>,
     out_tx: mpsc::Sender<ServerMessage>,
 ) -> Result<()> {
@@ -702,7 +770,7 @@ fn run_move_call_mining(
             while !cancel.load(Ordering::Relaxed) {
                 thread::sleep(Duration::from_millis(500));
                 let current = total_attempts.load(Ordering::Relaxed);
-                
+
                 // Only send update if progress made
                 if current > last_attempts {
                     let now = std::time::Instant::now();
@@ -726,10 +794,35 @@ fn run_move_call_mining(
     });
 
     // 2. Start Mining using Generic SingleObjectMode
-    let executor = CpuExecutor::new();
     let mode = SingleObjectMode::new(object_index); // Check specific index (e.g. 0)
     let config = MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_nonce);
-    let result = executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
+
+    let result = if gpu {
+        #[cfg(feature = "gpu")]
+        {
+            let executor = crate::mining::GpuExecutor::new();
+            executor.mine(
+                mode,
+                &config,
+                &target,
+                total_attempts.clone(),
+                cancel.clone(),
+            )?
+        }
+        #[cfg(not(feature = "gpu"))]
+        {
+            anyhow::bail!("GPU feature is not enabled. Compile with --features gpu");
+        }
+    } else {
+        let executor = CpuExecutor::new();
+        executor.mine(
+            mode,
+            &config,
+            &target,
+            total_attempts.clone(),
+            cancel.clone(),
+        )
+    };
 
     cancel.store(true, Ordering::SeqCst);
     let _ = progress_thread.join();

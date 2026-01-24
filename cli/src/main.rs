@@ -9,20 +9,22 @@ use crate::common::{
     create_split_tx_template, create_template_from_bytes, create_tx_template, format_large_number,
     randomize_gas_budget,
 };
-use crate::mining::{CpuExecutor, GasCoinMode, MinerConfig, MinerExecutor, PackageMode, SingleObjectMode};
+use crate::mining::{
+    CpuExecutor, GasCoinMode, MinerConfig, MinerExecutor, PackageMode, SingleObjectMode,
+};
 use crate::module_order::sort_modules_by_dependency;
 use crate::progress::ProgressDisplay;
 use crate::target::TargetChecker;
 use anyhow::{Context, Result};
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use clap::{Parser, Subcommand};
-use rand::rngs::OsRng;
 use rand::Rng;
+use rand::rngs::OsRng;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 use sui_sdk::SuiClientBuilder;
@@ -83,6 +85,10 @@ enum Commands {
         /// Export transaction template for Web Miner
         #[arg(long)]
         export_template: bool,
+
+        /// Use GPU for mining
+        #[arg(long)]
+        gpu: bool,
     },
     /// Mine for Gas Coin IDs (split gas coin)
     Gas {
@@ -117,6 +123,10 @@ enum Commands {
         /// Number of CPU threads to use (default: all cores)
         #[arg(short, long)]
         threads: Option<usize>,
+
+        /// Use GPU for mining
+        #[arg(long)]
+        gpu: bool,
     },
     /// Mine for a Move Call result ID (generic)
     Move {
@@ -135,6 +145,10 @@ enum Commands {
         /// Number of CPU threads to use (default: all cores)
         #[arg(short, long)]
         threads: Option<usize>,
+
+        /// Use GPU for mining
+        #[arg(long)]
+        gpu: bool,
     },
 }
 
@@ -163,6 +177,7 @@ async fn main() -> Result<()> {
             rpc_url,
             threads,
             export_template,
+            gpu,
         }) => {
             run_package_mining(
                 prefix,
@@ -174,6 +189,7 @@ async fn main() -> Result<()> {
                 rpc_url,
                 threads,
                 export_template,
+                gpu,
             )
             .await
         }
@@ -186,6 +202,7 @@ async fn main() -> Result<()> {
             gas_object,
             rpc_url,
             threads,
+            gpu,
         }) => {
             run_gas_mining(
                 prefix,
@@ -196,6 +213,7 @@ async fn main() -> Result<()> {
                 gas_object,
                 rpc_url,
                 threads,
+                gpu,
             )
             .await
         }
@@ -204,7 +222,8 @@ async fn main() -> Result<()> {
             tx_base64,
             object_index,
             threads,
-        }) => run_move_mining(prefix, tx_base64, object_index, threads).await,
+            gpu,
+        }) => run_move_mining(prefix, tx_base64, object_index, threads, gpu).await,
         None => {
             // Default behavior if no subcommand is provided (and not server mode)
             // Print help
@@ -225,6 +244,7 @@ async fn run_package_mining(
     rpc_url: String,
     threads_opt: Option<usize>,
     export_template: bool,
+    gpu: bool,
 ) -> Result<()> {
     // Parse and validate prefix
     let prefix = prefix.trim_start_matches("0x");
@@ -277,7 +297,9 @@ async fn run_package_mining(
     } else {
         println!("⚠️  No gas object specified, using mock data");
         (
-            ObjectID::from_str("0x0000000000000000000000000000000000000000000000000000000000000000")?,
+            ObjectID::from_str(
+                "0x0000000000000000000000000000000000000000000000000000000000000000",
+            )?,
             SequenceNumber::from_u64(0),
             ObjectDigest::new([0; 32]),
         )
@@ -323,6 +345,7 @@ async fn run_package_mining(
         PackageMode,
         target,
         prefix,
+        gpu,
     )
 }
 
@@ -335,6 +358,7 @@ async fn run_gas_mining(
     gas_object_str: Option<String>,
     rpc_url: String,
     threads_opt: Option<usize>,
+    gpu: bool,
 ) -> Result<()> {
     let prefix = prefix.trim_start_matches("0x");
     let target = TargetChecker::from_hex_prefix(prefix).context("Failed to parse prefix")?;
@@ -352,7 +376,9 @@ async fn run_gas_mining(
     } else {
         println!("⚠️  No gas object specified, using mock data");
         (
-            ObjectID::from_str("0x0000000000000000000000000000000000000000000000000000000000000000")?,
+            ObjectID::from_str(
+                "0x0000000000000000000000000000000000000000000000000000000000000000",
+            )?,
             SequenceNumber::from_u64(0),
             ObjectDigest::new([0; 32]),
         )
@@ -375,6 +401,7 @@ async fn run_gas_mining(
         GasCoinMode::new(num_outputs),
         target,
         prefix,
+        gpu,
     )
 }
 
@@ -383,6 +410,7 @@ async fn run_move_mining(
     tx_base64: String,
     object_index: u16,
     threads_opt: Option<usize>,
+    gpu: bool,
 ) -> Result<()> {
     let prefix = prefix.trim_start_matches("0x");
     let target = TargetChecker::from_hex_prefix(prefix).context("Failed to parse prefix")?;
@@ -405,6 +433,7 @@ async fn run_move_mining(
         SingleObjectMode::new(object_index),
         target,
         prefix,
+        gpu,
     )
 }
 
@@ -415,9 +444,12 @@ fn start_mining<M: crate::mining::mode::MiningMode>(
     mode: M,
     target: TargetChecker,
     prefix: &str,
+    gpu: bool,
 ) -> Result<()> {
     let threads = threads_opt.unwrap_or_else(num_cpus::get);
-    println!("🧵 Threads: {}", threads);
+    if !gpu {
+        println!("🧵 Threads: {}", threads);
+    }
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let total_attempts = Arc::new(std::sync::atomic::AtomicU64::new(0));
@@ -446,15 +478,39 @@ fn start_mining<M: crate::mining::mode::MiningMode>(
     let mut rng = OsRng;
     let start_epoch = rng.gen_range(100_000..(u64::MAX - 1_000_000_000));
     println!(
-        "💻 Starting CPU mining... (Start Epoch: {})\n",
+        "💻 Starting {} mining... (Start Epoch: {})\n",
+        if gpu { "GPU" } else { "CPU" },
         format_large_number(start_epoch)
     );
 
-    let executor = CpuExecutor::new();
-    let config =
-        MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_epoch);
-    let result =
-        executor.mine(mode, &config, &target, total_attempts.clone(), cancel.clone());
+    let config = MinerConfig::new(tx_template, salt_offset, threads).with_start_nonce(start_epoch);
+
+    let result = if gpu {
+        #[cfg(feature = "gpu")]
+        {
+            let executor = crate::mining::GpuExecutor::new();
+            executor.mine(
+                mode,
+                &config,
+                &target,
+                total_attempts.clone(),
+                cancel.clone(),
+            )?
+        }
+        #[cfg(not(feature = "gpu"))]
+        {
+            anyhow::bail!("GPU feature is not enabled. Compile with --features gpu");
+        }
+    } else {
+        let executor = CpuExecutor::new();
+        executor.mine(
+            mode,
+            &config,
+            &target,
+            total_attempts.clone(),
+            cancel.clone(),
+        )
+    };
 
     cancel.store(true, Ordering::SeqCst);
     let _ = progress_handle.join();

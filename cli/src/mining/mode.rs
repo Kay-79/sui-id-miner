@@ -31,6 +31,12 @@ pub trait MiningMode: Send + Sync + Clone + 'static {
     /// Description for logging
     #[allow(dead_code)]
     fn description(&self) -> &'static str;
+
+    /// Get index range to check (start, end specific)
+    /// Used for GPU optimization
+    fn index_range(&self) -> (u16, u16) {
+        (0, 1) // Default for PackageMode
+    }
 }
 
 /// Package ID mining mode
@@ -54,6 +60,10 @@ impl MiningMode for PackageMode {
 
     fn description(&self) -> &'static str {
         "Package ID"
+    }
+
+    fn index_range(&self) -> (u16, u16) {
+        (0, 1)
     }
 }
 
@@ -90,6 +100,10 @@ impl MiningMode for GasCoinMode {
     fn description(&self) -> &'static str {
         "Gas Coin ID"
     }
+
+    fn index_range(&self) -> (u16, u16) {
+        (0, self.num_outputs)
+    }
 }
 
 /// Generic Single Object mining mode
@@ -119,9 +133,12 @@ impl MiningMode for SingleObjectMode {
         }
     }
 
-    #[allow(dead_code)]
     fn description(&self) -> &'static str {
         "Single Object ID"
+    }
+
+    fn index_range(&self) -> (u16, u16) {
+        (self.object_index, self.object_index + 1)
     }
 }
 
