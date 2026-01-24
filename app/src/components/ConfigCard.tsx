@@ -168,6 +168,7 @@ export default function ConfigCard({
                         modulesBase64={modulesBase64}
                         setModulesBase64={setModulesBase64}
                         isRunning={isRunning}
+                        useGpu={useGpu}
                     />
                 )}
 
@@ -187,6 +188,7 @@ export default function ConfigCard({
                         splitAmounts={splitAmounts}
                         setSplitAmounts={setSplitAmounts}
                         isRunning={isRunning}
+                        useGpu={useGpu}
                     />
                 )}
 
@@ -203,7 +205,16 @@ export default function ConfigCard({
                         setTargetIndex={setTargetIndex}
                         threadCount={threadCount}
                         setThreadCount={setThreadCount}
+                        baseGasBudget={baseGasBudget}
+                        setBaseGasBudget={setBaseGasBudget}
+                        sender={sender}
+                        setSender={setSender}
+                        gasObjectId={gasObjectId}
+                        setGasObjectId={setGasObjectId}
+                        network={network}
+                        setNetwork={setNetwork}
                         isRunning={isRunning}
+                        useGpu={useGpu}
                     />
                 )}
             </div>

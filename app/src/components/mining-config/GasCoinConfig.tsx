@@ -14,6 +14,7 @@ interface GasCoinConfigProps {
     splitAmounts: number[]
     setSplitAmounts: (amounts: number[]) => void
     isRunning: boolean
+    useGpu: boolean
 }
 
 export default function GasCoinConfig({
@@ -29,7 +30,8 @@ export default function GasCoinConfig({
     setNetwork,
     splitAmounts,
     setSplitAmounts,
-    isRunning
+    isRunning,
+    useGpu
 }: GasCoinConfigProps) {
     const { statusMsg } = useBestGasCoin({
         sender,
@@ -124,8 +126,8 @@ export default function GasCoinConfig({
                                 )
                             }
                             className="brutal-input font-mono text-sm py-1 w-20"
-                            disabled={isRunning}
-                            placeholder="Auto"
+                            disabled={isRunning || useGpu}
+                            placeholder={useGpu ? 'GPU' : 'Auto'}
                         />
                     </div>
                 </div>

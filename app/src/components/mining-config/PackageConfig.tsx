@@ -15,6 +15,7 @@ interface PackageConfigProps {
     modulesBase64: string[]
     setModulesBase64: (modules: string[]) => void
     isRunning: boolean
+    useGpu: boolean
 }
 
 export default function PackageConfig({
@@ -30,7 +31,8 @@ export default function PackageConfig({
     setNetwork,
     modulesBase64,
     setModulesBase64,
-    isRunning
+    isRunning,
+    useGpu
 }: PackageConfigProps) {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [fileStatusMsg, setFileStatusMsg] = useState('')
@@ -164,8 +166,8 @@ export default function PackageConfig({
                                 )
                             }
                             className="brutal-input font-mono text-sm py-1 w-20"
-                            disabled={isRunning}
-                            placeholder="Auto"
+                            disabled={isRunning || useGpu}
+                            placeholder={useGpu ? 'GPU' : 'Auto'}
                         />
                     </div>
                 </div>

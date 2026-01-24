@@ -100,7 +100,7 @@ pub fn create_split_tx_template(
         .iter()
         .map(|a| ptb.pure(*a).unwrap())
         .collect();
-    
+
     // SplitCoins from gas coin (Argument::GasCoin)
     let _new_coins = ptb.command(sui_types::transaction::Command::SplitCoins(
         sui_types::transaction::Argument::GasCoin,
@@ -153,12 +153,10 @@ pub fn create_split_tx_template(
 
 /// Create a mining template from existing transaction bytes
 /// This is used for generic Move Calls or other transactions provided by the frontend
-pub fn create_template_from_bytes(
-    original_tx_bytes: &[u8],
-) -> Result<(Vec<u8>, usize)> {
+pub fn create_template_from_bytes(original_tx_bytes: &[u8]) -> Result<(Vec<u8>, usize)> {
     // Deserialize
-    let tx_data: TransactionData = bcs::from_bytes(original_tx_bytes)
-        .context("Failed to deserialize transaction bytes")?;
+    let tx_data: TransactionData =
+        bcs::from_bytes(original_tx_bytes).context("Failed to deserialize transaction bytes")?;
 
     // Create placeholder epoch
     let placeholder_epoch = 0xAAAAAAAAAAAAAAAAu64;
@@ -178,8 +176,9 @@ pub fn create_template_from_bytes(
 
     // Find offset
     let placeholder_bytes = placeholder_epoch.to_le_bytes();
-    let nonce_offset = find_pattern(&tx_bytes, &placeholder_bytes)
-        .context("Could not find expiration epoch placeholder in re-serialized transaction bytes")?;
+    let nonce_offset = find_pattern(&tx_bytes, &placeholder_bytes).context(
+        "Could not find expiration epoch placeholder in re-serialized transaction bytes",
+    )?;
 
     Ok((tx_bytes, nonce_offset))
 }

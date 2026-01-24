@@ -1,4 +1,6 @@
+import type { ChangeEvent } from 'react'
 import NeoSelect from '../NeoSelect'
+import { useBestGasCoin } from '../../hooks/useBestGasCoin'
 
 interface MoveCallConfigProps {
     mcTarget: string
@@ -11,7 +13,17 @@ interface MoveCallConfigProps {
     setTargetIndex: (n: number) => void
     threadCount: number
     setThreadCount: (n: number) => void
+    baseGasBudget: number
+    setBaseGasBudget: (val: number) => void
+
+    sender: string
+    setSender: (s: string) => void
+    gasObjectId: string
+    setGasObjectId: (id: string) => void
+    network: 'mainnet' | 'testnet' | 'devnet'
+    setNetwork: (n: 'mainnet' | 'testnet' | 'devnet') => void
     isRunning: boolean
+    useGpu: boolean
 }
 
 export default function MoveCallConfig({
@@ -25,8 +37,38 @@ export default function MoveCallConfig({
     setTargetIndex,
     threadCount,
     setThreadCount,
-    isRunning
+    baseGasBudget,
+    setBaseGasBudget,
+
+    sender,
+    setSender,
+    gasObjectId,
+    setGasObjectId,
+    network,
+    setNetwork,
+    isRunning,
+    useGpu
 }: MoveCallConfigProps) {
+    // Use the hook for gas coin logic
+    const { statusMsg: gasStatusMsg } = useBestGasCoin({
+        sender,
+        network,
+        setGasObjectId
+    })
+
+    const handleSenderChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value
+        // Allow empty
+        if (val === '') {
+            setSender(val)
+            return
+        }
+        // Strict hex validation: 0, 0x, or 0x[hex]
+        if (/^(0|0x|0x[0-9a-fA-F]*)$/.test(val)) {
+            setSender(val)
+        }
+    }
+
     return (
         <div className="space-y-4 p-4 bg-purple-50 border-2 border-dashed border-purple-300">
             {/* Builder Mode Only - Raw Bytes Hidden */}
@@ -42,6 +84,21 @@ export default function MoveCallConfig({
                         onChange={(e) => setMcTarget(e.target.value)}
                         className="brutal-input font-mono text-sm w-full"
                         placeholder="package::module::function"
+                        disabled={isRunning}
+                    />
+                </div>
+
+                {/* Sender */}
+                <div>
+                     <label className="block text-xs font-bold uppercase mb-1">
+                        Sender Address
+                    </label>
+                    <input
+                        type="text"
+                        value={sender}
+                        onChange={handleSenderChange}
+                        className="brutal-input font-mono text-sm w-full"
+                        placeholder="0x..."
                         disabled={isRunning}
                     />
                 </div>
@@ -159,11 +216,61 @@ export default function MoveCallConfig({
                                 )
                             }
                             className="brutal-input font-mono text-sm py-1 w-20"
-                            disabled={isRunning}
-                            placeholder="Auto"
+                            disabled={isRunning || useGpu}
+                            placeholder={useGpu ? 'GPU' : 'Auto'}
                         />
                     </div>
                 </div>
+                <div className="w-40">
+                    <label className="block text-xs font-bold uppercase mb-1">
+                        Base Gas Budget
+                    </label>
+                     <input
+                        type="number"
+                        min={1000}
+                        step={100}
+                        value={baseGasBudget || ''}
+                        onChange={(e) =>
+                            setBaseGasBudget(
+                                Math.max(0, parseInt(e.target.value) || 0)
+                            )
+                        }
+                        className="brutal-input font-mono text-sm py-1 w-full"
+                        disabled={isRunning}
+                        placeholder="100000000"
+                    />
+                </div>
+            </div>
+
+             {/* Gas Object */}
+            <div className="p-3 bg-white border border-blue-200 rounded mt-4">
+                <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-xs font-bold uppercase">Gas Object</h4>
+                    <div className="flex gap-1">
+                        {(['mainnet', 'testnet', 'devnet'] as const).map((net) => (
+                            <button
+                                key={net}
+                                onClick={() => setNetwork(net)}
+                                className={`px-2 py-0.5 text-[10px] font-bold uppercase border border-black ${network === net ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-100'}`}
+                            >
+                                {net}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="grid gap-2">
+                    <input
+                        type="text"
+                        value={gasObjectId}
+                        onChange={(e) => setGasObjectId(e.target.value)}
+                        className="brutal-input text-xs font-mono py-1"
+                        placeholder="Object ID (0x...) - fetched automatically"
+                        maxLength={66}
+                        disabled={isRunning}
+                    />
+                </div>
+                 {gasStatusMsg && <p className="text-xs mt-2 font-medium">{gasStatusMsg}</p>}
             </div>
         </div>
     )

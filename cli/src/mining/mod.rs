@@ -12,4 +12,8 @@ pub use config::MinerConfig;
 pub use executor::{CpuExecutor, MinerExecutor};
 pub use mode::{GasCoinMode, PackageMode, SingleObjectMode};
 
+#[cfg(feature = "gpu")]
+pub mod gpu;
 
+#[cfg(feature = "gpu")]
+pub use gpu::GpuExecutor;
