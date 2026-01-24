@@ -18,7 +18,7 @@ Sui Package ID Miner is a high-performance CPU-based tool for mining custom (van
 |------|-------------|
 | **Vanity Package IDs** | Mine for specific hex prefixes (e.g., `0x00...`, `0xcafe...`) |
 | **100% On-Chain Verified** | Use official `sui-types` SDK logic to ensure derived IDs match the Sui network exactly |
-| **Multi-threaded Performance** | Utilize all available CPU cores for maximum hashrate |
+| **High Performance** | Hybrid CPU/GPU mining utilizing all available resources (OpenCL support) |
 | **Web Interface** | Provide a modern web UI for easy access without CLI knowledge |
 | **Real-time Feedback** | Display live hashrate, attempts, and progress |
 
@@ -51,7 +51,7 @@ flowchart TB
     subgraph CLI["CLI Layer"]
         A[main.rs] --> B[Args Parser]
         B --> C{Mode?}
-        C -->|CLI Mining| D[CpuMiner]
+        C -->|CLI Mining| D[MinerExecutor]
         C -->|Server Mode| E[WebSocket Server]
     end
     
@@ -125,17 +125,21 @@ if target.matches(&package_id.into_bytes()) {
 }
 ```
 
-### 3. Parallel Processing
-
-Using Rayon for CPU parallelism:
-
-```rust
-let batch_size = 100_000u64;
-(0..batch_size).into_par_iter().find_map_any(|i| {
-    // Each thread processes a portion of the batch
-    // First match returns immediately
-})
-```
+### 3. Parallel Processing & GPU Acceleration
+ 
+ **CPU (Rayon):**
+ ```rust
+ let batch_size = 100_000u64;
+ (0..batch_size).into_par_iter().find_map_any(|i| {
+     // Each thread processes a portion of the batch
+     // First match returns immediately
+ })
+ ```
+ 
+ **GPU (OpenCL):**
+ - Offloads hashing to GPU using optimized OpenCL kernels.
+ - Processes massive batches (e.g., millions of nonces) in parallel.
+ - Drastically reduces CPU load while increasing hashrate.
 
 ### 4. Prefix Matching Optimization
 
@@ -268,7 +272,7 @@ Tests cover:
 
 ### Integration Testing
 
-1. Start server: `cargo run --release -- --server`
+1. Start server: `cargo run --release --features gpu -- --server`
 2. Start web app: `cd app && npm run dev`
 3. Connect and verify mining workflow
 
@@ -278,7 +282,6 @@ Tests cover:
 
 | Improvement | Description |
 |-------------|-------------|
-| **GPU Acceleration** | OpenCL/CUDA for 10-100x speedup |
 | **WASM Mining** | Browser-based mining for distributed workload |
 | **Custom Patterns** | Support for suffix, contains, or regex patterns |
 | **Multiple Targets** | Mine for any of several prefixes simultaneously |

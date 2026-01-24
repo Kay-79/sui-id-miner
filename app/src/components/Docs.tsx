@@ -72,7 +72,7 @@ export default function Docs() {
                     <li>
                         <strong>Start the Server:</strong> You must run the local server first to handle the heavy generation work ("mining").
                         <div className="bg-gray-900 text-white p-2 mt-1 rounded font-mono text-sm">
-                            cd cli && cargo run --release -- --server
+                            cd cli && cargo run --release --features gpu -- --server
                         </div>
                     </li>
                     <li><strong>Connect:</strong> Click the "Connect local server" button.</li>

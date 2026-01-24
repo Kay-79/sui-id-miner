@@ -16,7 +16,18 @@ These arguments apply to all commands or are frequently used:
 | `--sender <ADDR>` | Your wallet address (sender of the transaction). | `0x0...01` |
 | `--gas-object <ID>` | ID of the coin used to pay gas. | (Mock) |
 | `--threads <N>` | Number of CPU threads to utilize. | All Cores |
+| `--gpu` | Enable GPU mining (requires OpenCL). | False |
 | `--gas-budget <N>` | Gas budget for the transaction (MIST). | `100000000` |
+
+---
+
+### ⚠️ Prerequisite: Building with GPU Support
+To use the `--gpu` flag, you must compile the CLI with the `gpu` feature enabled:
+
+```bash
+cd cli
+cargo build --release --features gpu
+```
 
 ---
 
@@ -39,7 +50,8 @@ Find a vanity address for your Move package (e.g., `0xcafe...`).
       --prefix <DESIRED_PREFIX> \
       --module ./build/<PackageName>/bytecode_modules \
       --sender <YOUR_ADDRESS> \
-      --gas-object <GAS_COIN_ID>
+      --gas-object <GAS_COIN_ID> \
+      --gpu
     ```
 
 4.  **Publish**:
@@ -61,7 +73,9 @@ cargo run --release -- gas \
   --prefix aaaa \
   --split-amounts 1000000000,1000000000 \
   --sender <YOUR_ADDRESS> \
-  --gas-object <GAS_COIN_ID>
+  --sender <YOUR_ADDRESS> \
+  --gas-object <GAS_COIN_ID> \
+  --gpu
 ```
 
 ---
@@ -82,7 +96,9 @@ Mine a vanity ID for an object created by *any* Move call (e.g., `coin::create_c
     cargo run --release -- move \
       --prefix <PREFIX> \
       --tx-base64 <BASE64_STRING> \
-      --object-index 0
+      --tx-base64 <BASE64_STRING> \
+      --object-index 0 \
+      --gpu
     ```
     *Note: `object-index` is usually 0 for the first object created.*
 
@@ -97,7 +113,7 @@ The web app needs a local server to handle the heavy CPU mining.
 
 ```bash
 cd cli
-cargo run --release -- --server
+cargo run --release --features gpu -- --server
 ```
 *   Server listens on `ws://localhost:9876`.
 *   Leave this terminal running.
@@ -116,8 +132,9 @@ npm run dev
 1.  Click **Connect** in the top right to link to the WebSocket server.
 2.  Select your desired **Mode** (Package, Gas, etc.).
 3.  Fill in the form (Sender, Gas Object, etc.).
-4.  Click **Start Mining**.
-5.  Watch the progress bar! The app will notify you when a match is found.
+4.  (Optional) Check **⚡ Use GPU Acceleration** for high-performance mining.
+5.  Click **Start Mining**.
+6.  Watch the progress bar! The app will notify you when a match is found.
 
 ## Performance Tuning
 -   **Threads**: By default, the miner uses *all* available cores. If your system lags, reduce threads using `--threads 4`.
@@ -125,3 +142,4 @@ npm run dev
     -   3 chars: Instant
     -   6 chars: Minutes/Hours
     -   8+ chars: Days/Weeks (depending on hardware)
+-   **GPU**: For maximum speed, use `--gpu`. The miner uses OpenCL to offload hashing to your graphics card. This can be 10x-100x faster than CPU mining for complex targets.

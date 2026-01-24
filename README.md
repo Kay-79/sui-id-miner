@@ -14,7 +14,8 @@ This project allows you to mine:
 ## Features
 
 -   **Multi-Mode Mining**: Supports Package ID, Gas Coin ID, and Generic Move Call ID mining.
--   **High Performance**: Multi-threaded CPU mining utilizing all available cores.
+-   **High Performance**: Hybrid CPU/GPU mining utilizing all available resources.
+-   **GPU Acceleration**: OpenCL-based GPU mining for massive speedups (10-100x vs CPU).
 -   **100% On-Chain Verified**: Uses official `sui-types` logic to ensure accuracy.
 -   **Web Interface**: Includes a Neo-Brutalism styled web UI for easy interaction.
 -   **CLI Support**: Full command-line support for automation and headless operation.
@@ -28,7 +29,7 @@ Build the tool and check the help menu:
 
 ```bash
 cd cli
-cargo build --release
+cargo build --release --features gpu
 ./target/release/sui-id-miner --help
 ```
 
@@ -39,7 +40,7 @@ Start the backend server and frontend app:
 
 ```bash
 # Terminal 1 (Server)
-cd cli && cargo run --release -- --server
+cd cli && cargo run --release --features gpu -- --server
 
 # Terminal 2 (Frontend)
 cd app && npm install && npm run dev
