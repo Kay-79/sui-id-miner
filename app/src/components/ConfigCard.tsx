@@ -15,8 +15,6 @@ interface ConfigCardProps {
     difficulty: number
     estimatedAttempts: number
     isValidPrefix: boolean
-    useGpu: boolean
-    setUseGpu: (useGpu: boolean) => void
     // WebSocket mode props
     modulesBase64: string[]
     setModulesBase64: (modules: string[]) => void
@@ -27,9 +25,6 @@ interface ConfigCardProps {
     // Network selection from parent (shared state)
     network: 'mainnet' | 'testnet' | 'devnet'
     setNetwork: (n: 'mainnet' | 'testnet' | 'devnet') => void
-    // Thread count
-    threadCount: number
-    setThreadCount: (n: number) => void
     // Gas Coin mode
     splitAmounts: number[]
     setSplitAmounts: (amounts: number[]) => void
@@ -56,8 +51,6 @@ export default function ConfigCard({
     difficulty,
     estimatedAttempts,
     isValidPrefix,
-    useGpu,
-    setUseGpu,
     modulesBase64,
     setModulesBase64,
     sender,
@@ -66,8 +59,6 @@ export default function ConfigCard({
     setGasObjectId,
     network,
     setNetwork,
-    threadCount,
-    setThreadCount,
     splitAmounts,
     setSplitAmounts,
     targetIndex,
@@ -148,8 +139,6 @@ export default function ConfigCard({
                     estimatedAttempts={estimatedAttempts}
                     isValidPrefix={isValidPrefix}
                     isRunning={isRunning}
-                    useGpu={useGpu}
-                    setUseGpu={setUseGpu}
                 />
 
                 {/* Package Mode Config */}
@@ -159,16 +148,13 @@ export default function ConfigCard({
                         setSender={setSender}
                         baseGasBudget={baseGasBudget}
                         setBaseGasBudget={setBaseGasBudget}
-                        threadCount={threadCount}
-                        setThreadCount={setThreadCount}
+                        modulesBase64={modulesBase64}
+                        setModulesBase64={setModulesBase64}
                         gasObjectId={gasObjectId}
                         setGasObjectId={setGasObjectId}
                         network={network}
                         setNetwork={setNetwork}
-                        modulesBase64={modulesBase64}
-                        setModulesBase64={setModulesBase64}
                         isRunning={isRunning}
-                        useGpu={useGpu}
                     />
                 )}
 
@@ -179,16 +165,13 @@ export default function ConfigCard({
                         setSender={setSender}
                         baseGasBudget={baseGasBudget}
                         setBaseGasBudget={setBaseGasBudget}
-                        threadCount={threadCount}
-                        setThreadCount={setThreadCount}
+                        splitAmounts={splitAmounts}
+                        setSplitAmounts={setSplitAmounts}
                         gasObjectId={gasObjectId}
                         setGasObjectId={setGasObjectId}
                         network={network}
                         setNetwork={setNetwork}
-                        splitAmounts={splitAmounts}
-                        setSplitAmounts={setSplitAmounts}
                         isRunning={isRunning}
-                        useGpu={useGpu}
                     />
                 )}
 
@@ -203,8 +186,6 @@ export default function ConfigCard({
                         setMcArgs={setMcArgs}
                         targetIndex={targetIndex}
                         setTargetIndex={setTargetIndex}
-                        threadCount={threadCount}
-                        setThreadCount={setThreadCount}
                         baseGasBudget={baseGasBudget}
                         setBaseGasBudget={setBaseGasBudget}
                         sender={sender}
@@ -214,7 +195,6 @@ export default function ConfigCard({
                         network={network}
                         setNetwork={setNetwork}
                         isRunning={isRunning}
-                        useGpu={useGpu}
                     />
                 )}
             </div>

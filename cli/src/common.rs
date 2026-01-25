@@ -25,7 +25,7 @@ pub fn format_large_number(n: u64) -> String {
 
 pub fn randomize_gas_budget(base_gas_budget: u64) -> (u64, u64) {
     let mut rng = OsRng;
-    let extra_gas: u64 = rng.gen_range(0..10_000); // Updated to 10,000 as per user request
+    let extra_gas: u64 = rng.gen_range(0..100_000);
     let effective = base_gas_budget + extra_gas;
     (effective, extra_gas)
 }

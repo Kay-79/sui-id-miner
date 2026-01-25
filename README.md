@@ -1,6 +1,6 @@
 # Sui ID Miner
 
-**A high-performance CPU miner for finding various vanity Object IDs on the Sui blockchain.**
+**A high-performance CPU/GPU miner for finding various vanity Object IDs on the Sui blockchain.**
 
 This project allows you to mine:
 1.  **Package IDs**: Vanity addresses for your Move packages (e.g., `0xcafe...`).
@@ -24,12 +24,19 @@ This project allows you to mine:
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+-   **Rust & Cargo**: Latest stable version.
+-   **OpenCL Drivers**: Required for GPU mining (install drivers for your NVIDIA, AMD, or Intel GPU).
+
 ### 1. CLI Usage
 Build the tool and check the help menu:
 
 ```bash
 cd cli
+# Build with GPU support (Recommended)
 cargo build --release --features gpu
+# Or for CPU only: cargo build --release
 ./target/release/sui-id-miner --help
 ```
 

@@ -8,7 +8,7 @@
 
 ## Summary
 
-Sui Package ID Miner is a high-performance CPU-based tool for mining custom (vanity) Package IDs when publishing Move packages on the Sui blockchain. It enables developers to obtain memorable Package IDs like `0x0000...`, `0xcafe...`, or `0xdead...` by brute-forcing transaction parameters until a matching Package ID is derived.
+Sui Package ID Miner is a high-performance Hybrid CPU/GPU tool for mining custom (vanity) Package IDs when publishing Move packages on the Sui blockchain. It enables developers to obtain memorable Package IDs like `0x0000...`, `0xcafe...`, or `0xdead...` by brute-forcing transaction parameters until a matching Package ID is derived.
 
 ---
 

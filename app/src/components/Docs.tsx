@@ -20,16 +20,16 @@ export default function Docs() {
 
                 <div className="bg-gray-100 p-4 border-2 border-black rounded-lg space-y-4 font-mono text-sm overflow-x-auto">
                     <div>
-                        <p className="text-gray-500 mb-1"># 1. Mine Package ID</p>
+                        <p className="text-gray-500 mb-1"># 1. Vanity Package ID (Publish)</p>
                         <p>cargo run --release -- package --prefix cafe --module ./build/MyPackage/bytecode_modules --sender 0x...</p>
                     </div>
                     <div>
-                        <p className="text-gray-500 mb-1"># 2. Mine Gas Coin ID (Split Coin)</p>
-                        <p>cargo run --release -- gas --prefix aaaa --split-amounts 1000000,1000000 --sender 0x...</p>
+                        <p className="text-gray-500 mb-1"># 2. Vanity Gas Coin ID (Split)</p>
+                        <p>cargo run --release -- gas --prefix face --split-amounts 1000000 --sender 0x...</p>
                     </div>
                     <div>
-                        <p className="text-gray-500 mb-1"># 3. Mine Move Call ID</p>
-                        <p>cargo run --release -- move --prefix 0000 --tx-base64 AAAB... --object-index 0</p>
+                        <p className="text-gray-500 mb-1"># 3. Vanity Object ID (Move Call)</p>
+                        <p>cargo run --release -- move --prefix f00d --tx-base64 AAAB... --object-index 0</p>
                     </div>
                 </div>
 
@@ -53,6 +53,10 @@ export default function Docs() {
                             <tr>
                                 <td className="p-2 font-mono">--sender</td>
                                 <td className="p-2">Sender address for the transaction</td>
+                            </tr>
+                            <tr>
+                                <td className="p-2 font-mono">--gpu</td>
+                                <td className="p-2">Enable NVIDIA GPU acceleration (CUDA)</td>
                             </tr>
                         </tbody>
                     </table>
@@ -78,6 +82,7 @@ export default function Docs() {
                     <li><strong>Connect:</strong> Click the "Connect local server" button.</li>
                     <li><strong>Select Mode:</strong> Choose between Package, Gas Coin, or Move Call.</li>
                     <li><strong>Configure:</strong> Fill in the required fields (Sender, Gas Object, etc.).</li>
+                    <li><strong>Enable GPU (Optional):</strong> Check "Use GPU" for faster mining (requires CUDA).</li>
                     <li><strong>Start:</strong> Click "Start Generation" and watch the progress!</li>
                 </ol>
             </section>

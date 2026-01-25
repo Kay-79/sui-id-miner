@@ -22,7 +22,16 @@ These arguments apply to all commands or are frequently used:
 ---
 
 ### ⚠️ Prerequisite: Building with GPU Support
-To use the `--gpu` flag, you must compile the CLI with the `gpu` feature enabled:
+To use the `--gpu` flag, you must compile the CLI with the `gpu` feature enabled and have proper drivers installed.
+
+1.  **Install OpenCL Drivers**:
+    -   **NVIDIA**: Install standard NVIDIA Display Drivers (CUDA toolkit includes OpenCL).
+    -   **AMD**: Install Radeon Software.
+    -   **Intel**: Install Intel Graphics Drivers.
+    -   *Linux*: Ensure `ocl-icd-opencl-dev` or similar package is installed.
+
+2.  **Build**:
+    To use the `--gpu` flag, you must compile the CLI with the `gpu` feature enabled:
 
 ```bash
 cd cli
@@ -143,3 +152,28 @@ npm run dev
     -   6 chars: Minutes/Hours
     -   8+ chars: Days/Weeks (depending on hardware)
 -   **GPU**: For maximum speed, use `--gpu`. The miner uses OpenCL to offload hashing to your graphics card. This can be 10x-100x faster than CPU mining for complex targets.
+
+---
+
+## 🔧 Troubleshooting
+
+### "GPU feature is not enabled"
+If you see this error when running with `--gpu`:
+-   **Solution**: You compiled without the gpu feature. Rebuild with:
+    ```bash
+    cargo build --release --features gpu
+    ```
+
+### "OpenCL Build Error" or "No Platform Found"
+-   **Cause**: The miner cannot access your GPU drivers.
+-   **Solution**:
+    1.  Update your GPU drivers (NVIDIA/AMD/Intel).
+    2.  Ensure OpenCL.dll (Windows) or libOpenCL.so (Linux) is in your system path.
+    3.  On Linux, you may need `sudo apt install ocl-icd-opencl-dev`.
+
+### "GPU Mismatch" or "False Positive"
+-   **Cause**: The GPU returned a result that the CPU could not verify. This can happen if the GPU is overclocked too high or is unstable.
+-   **Solution**:
+    1.  Reduce GPU overclocking.
+    2.  Check for overheating.
+    3.  Report the issue on GitHub with your GPU model.

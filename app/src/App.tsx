@@ -33,7 +33,7 @@ function App() {
     // Package Mode: Module storage + Gas Object
     const [modulesBase64, setModulesBase64] = useState<string[]>([])
     const [sender, setSender] = useState(
-        '0x0000000000000000000000000000000000000000000000000000000000000000'
+        ''
     )
     const [gasObjectId, setGasObjectId] = useState('')
     const [lastGasVersion, setLastGasVersion] = useState<string | null>(null)
@@ -133,6 +133,8 @@ function App() {
                 objectIndex: wsMiner.moveCallResult.objectIndex,
                 txDigest: wsMiner.moveCallResult.txDigest,
                 txBytesBase64: wsMiner.moveCallResult.txBytesBase64,
+                gasObjectId: gasObjectId,
+                gasObjectVersion: lastGasVersion || undefined,
                 attempts: wsMiner.moveCallResult.attempts,
                 timestamp: Date.now(),
             }
@@ -163,12 +165,12 @@ function App() {
             return
         }
 
+        if (!sender) {
+            showToast('Please set Sender Address!', 'error')
+            return
+        }
+
         if (mode === 'PACKAGE') {
-            // Check if sender is zero address
-            if (/^0x0+$/.test(sender)) {
-                showToast('Please set Sender Address!', 'error')
-                return
-            }
             if (modulesBase64.length === 0) {
                 showToast('Please upload .mv module files!', 'error')
                 return
@@ -218,11 +220,6 @@ function App() {
         }
 
         if (mode === 'GAS_COIN') {
-            // Check if sender is zero address
-            if (/^0x0+$/.test(sender)) {
-                showToast('Please set Sender Address!', 'error')
-                return
-            }
             if (splitAmounts.length === 0 || splitAmounts.every((a) => a <= 0)) {
                 showToast('Please set split amounts!', 'error')
                 return
@@ -280,7 +277,6 @@ function App() {
                         if (arg.type === 'number') return tx.pure.u64(arg.value)
                         return tx.pure.string(arg.value)
                     })
-
                     tx.moveCall({
                         target: mcTarget,
                         typeArguments: mcTypeArgs,
@@ -301,6 +297,8 @@ function App() {
                                 digest: coinObj.data.digest,
                             },
                         ])
+                        // Capture version for result tracking
+                        setLastGasVersion(coinObj.data.version)
                     } else {
                         throw new Error(`Gas object ${gasObjectId} not found`)
                     }
@@ -314,7 +312,11 @@ function App() {
             }
 
             if (!bytes) {
-                showToast('Please enter Transaction Bytes or fill the Builder form!', 'error')
+                if (!mcTarget) {
+                    showToast('Please fill target function!', 'error')
+                    return
+                }
+                showToast('Please fill the Builder form!', 'error')
                 return
             }
 
@@ -381,8 +383,6 @@ function App() {
                             difficulty={difficulty}
                             estimatedAttempts={estimatedAttempts}
                             isValidPrefix={isValidPrefix}
-                            useGpu={useGpu}
-                            setUseGpu={setUseGpu}
                             modulesBase64={modulesBase64}
                             setModulesBase64={setModulesBase64}
                             sender={sender}
@@ -391,8 +391,6 @@ function App() {
                             setGasObjectId={setGasObjectId}
                             network={network}
                             setNetwork={setNetwork}
-                            threadCount={threadCount}
-                            setThreadCount={setThreadCount}
                             splitAmounts={splitAmounts}
                             setSplitAmounts={setSplitAmounts}
                             targetIndex={targetIndex}
@@ -415,6 +413,10 @@ function App() {
                             hashrate={hashrate}
                             attempts={smoothAttempts}
                             progress={progressPercent}
+                            useGpu={useGpu}
+                            setUseGpu={setUseGpu}
+                            threadCount={threadCount}
+                            setThreadCount={setThreadCount}
                         />
 
                         <ResultsList

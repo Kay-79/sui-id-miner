@@ -1,24 +1,31 @@
-name: Build CLI
+name: Test & Build
 
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  cli-test:
+    name: CLI Test & Build
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v4
     
+    - name: Install OpenCL Headers
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ocl-icd-opencl-dev
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       
-    - name: Build CLI
+    - name: Run Tests
       working-directory: ./cli
-      run: cargo build --verbose --release
+      run: cargo test --verbose --features gpu
+
+    - name: Build
+      working-directory: ./cli
+      run: cargo build --verbose --release --features gpu

@@ -50,9 +50,6 @@ const RESULT_CONFIG = {
 
 // --- Sub-Components ---
 
-/**
- * Component xử lý nút Copy và hiệu ứng chuyển đổi trạng thái
- */
 function CopyButton({ command }: { command: string }) {
   const [copied, setCopied] = useState(false)
 
@@ -75,10 +72,6 @@ function CopyButton({ command }: { command: string }) {
   )
 }
 
-/**
- * Component kiểm tra trạng thái Gas Object
- * Quản lý state check riêng biệt cho từng item để tránh render lại cả list
- */
 function GasAvailabilityCheck({
   gasObjectId,
   savedVersion,
@@ -104,7 +97,7 @@ function GasAvailabilityCheck({
           setStatus('invalid')
         } else {
           setStatus('valid')
-          setTimeout(() => setStatus(null), 5000) // Reset về trạng thái chờ sau 5s nếu valid
+          setTimeout(() => setStatus(null), 5000) 
         }
       } else {
         setStatus('invalid')
@@ -145,9 +138,6 @@ function GasAvailabilityCheck({
   )
 }
 
-/**
- * Component hiển thị 2 bước thực hiện (Sign & Execute)
- */
 function ActionInstructions({
   title,
   sender,
@@ -186,7 +176,6 @@ function ActionInstructions({
     </div>
   )
 
-  // Xác định màu badge số thứ tự (1, 2) dựa trên theme
   const stepBadgeColor = config.theme === 'gray' ? 'bg-black' : config.bgBadge
 
   return (
@@ -198,9 +187,6 @@ function ActionInstructions({
   )
 }
 
-/**
- * Component hiển thị một dòng kết quả
- */
 function ResultItem({
   result,
   isExpanded,
@@ -214,11 +200,9 @@ function ResultItem({
   sender: string
   network: string
 }) {
-  // Xác định loại config (Package, Gas Coin hay Move Call)
   const resultType = result.type === 'GAS_COIN' ? 'GAS_COIN' : result.type === 'MOVE_CALL' ? 'MOVE_CALL' : 'PACKAGE'
   const config = RESULT_CONFIG[resultType]
 
-  // Xác định ID hiển thị
   const displayId = (result.type === 'GAS_COIN' || result.type === 'MOVE_CALL') ? result.objectId : result.packageId
   const safeId = displayId || ''
 
