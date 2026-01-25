@@ -1,4 +1,10 @@
-import { Listbox, ListboxButton, ListboxOption, ListboxOptions, Transition } from '@headlessui/react'
+import {
+    Listbox,
+    ListboxButton,
+    ListboxOption,
+    ListboxOptions,
+    Transition,
+} from '@headlessui/react'
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid'
 import { Fragment } from 'react'
 
@@ -17,14 +23,14 @@ export default function NeoSelect<T extends string | number | boolean>({
     options,
     disabled = false,
     className = '',
-    placeholder = 'Select...'
+    placeholder = 'Select...',
 }: NeoSelectProps<T>) {
-    const selectedOption = options.find(o => o.value === value)
+    const selectedOption = options.find((o) => o.value === value)
 
     return (
         <Listbox value={value} onChange={onChange} disabled={disabled}>
             <div className={`relative ${className}`}>
-                <ListboxButton 
+                <ListboxButton
                     className={`
                         relative w-full cursor-pointer
                         bg-white text-left 
@@ -41,10 +47,7 @@ export default function NeoSelect<T extends string | number | boolean>({
                         {selectedOption ? selectedOption.label : placeholder}
                     </span>
                     <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                        <ChevronUpDownIcon
-                            className="h-5 w-5 text-gray-400"
-                            aria-hidden="true"
-                        />
+                        <ChevronUpDownIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
                     </span>
                 </ListboxButton>
                 <Transition
@@ -53,7 +56,7 @@ export default function NeoSelect<T extends string | number | boolean>({
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <ListboxOptions 
+                    <ListboxOptions
                         className="
                             absolute mt-1 max-h-60 w-full overflow-auto 
                             bg-white 

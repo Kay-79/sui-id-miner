@@ -23,7 +23,6 @@ export function useSmoothStats(serverProgress: MiningProgress | null, isRunning:
             setSmoothAttempts(serverProgress.attempts)
             return
         }
-
     }, [serverProgress])
 
     useEffect(() => {
@@ -39,7 +38,9 @@ export function useSmoothStats(serverProgress: MiningProgress | null, isRunning:
             const timeDiff = (now - lastServerUpdate.current) / 1000 // seconds
 
             // Predict current attempts: last_known + (hashrate * time_since_update)
-            const predicted = Math.floor(lastServerAttempts.current + (serverProgress.hashrate * timeDiff))
+            const predicted = Math.floor(
+                lastServerAttempts.current + serverProgress.hashrate * timeDiff
+            )
 
             setSmoothAttempts(predicted)
 

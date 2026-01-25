@@ -33,4 +33,3 @@ export interface MiningState {
     startTime: number | null
     foundResults: FoundResult[]
 }
-

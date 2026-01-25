@@ -47,7 +47,7 @@ export default function MiningControl({
                         </>
                     ) : (
                         <div className="flex flex-col gap-2">
-                             <span className="text-xl font-bold">
+                            <span className="text-xl font-bold">
                                 {isConnected ? 'Ready to generate' : '⚠️ Not Connected'}
                             </span>
                             {isConnected && (

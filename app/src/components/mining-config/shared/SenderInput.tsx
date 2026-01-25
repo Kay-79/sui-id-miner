@@ -22,9 +22,7 @@ export default function SenderInput({ value, onChange, disabled }: SenderInputPr
 
     return (
         <div>
-            <label className="block text-xs font-bold uppercase mb-1">
-                Sender Address
-            </label>
+            <label className="block text-xs font-bold uppercase mb-1">Sender Address</label>
             <input
                 type="text"
                 value={value}

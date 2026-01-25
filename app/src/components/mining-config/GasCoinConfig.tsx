@@ -1,6 +1,7 @@
 import SenderInput from './shared/SenderInput'
 import GasSettings from './shared/GasSettings'
 import GasObjectInput from './shared/GasObjectInput'
+import { useGasBalance } from '../../hooks/useGasBalance'
 
 interface GasCoinConfigProps {
     sender: string
@@ -29,12 +30,11 @@ export default function GasCoinConfig({
     setSplitAmounts,
     isRunning,
 }: GasCoinConfigProps) {
+    const { balance } = useGasBalance(gasObjectId, network)
+
     return (
         <div className="space-y-4 p-4 bg-amber-50 border-2 border-dashed border-amber-300">
-            <SenderInput
-                value={sender}
-                onChange={setSender}
-            />
+            <SenderInput value={sender} onChange={setSender} />
 
             <GasSettings
                 gasBudget={baseGasBudget}
@@ -57,9 +57,18 @@ export default function GasCoinConfig({
                                 const mist = Math.floor(sui * 1_000_000_000)
                                 setSplitAmounts([mist])
                             }}
-                            className="brutal-input font-mono text-sm w-32"
+                            className={`brutal-input font-mono text-sm w-32 ${
+                                balance !== null && splitAmounts[0] > balance
+                                    ? 'border-red-500 bg-red-50'
+                                    : ''
+                            }`}
                             disabled={isRunning}
                         />
+                        {balance !== null && splitAmounts[0] > balance && (
+                            <span className="text-red-500 text-[10px] font-bold">
+                                INSUFFICIENT BALANCE ({(balance / 1e9).toFixed(2)})
+                            </span>
+                        )}
                     </div>
                     {/* Compact Hint - removed extra padding to fit row */}
                 </div>
@@ -77,4 +86,3 @@ export default function GasCoinConfig({
         </div>
     )
 }
-

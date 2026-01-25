@@ -96,10 +96,7 @@ export default function PackageConfig({
 
     return (
         <div className="space-y-4 p-4 bg-gray-50 border-2 border-dashed border-gray-300">
-            <SenderInput
-                value={sender}
-                onChange={setSender}
-            />
+            <SenderInput value={sender} onChange={setSender} />
 
             <GasSettings
                 gasBudget={baseGasBudget}
@@ -136,9 +133,7 @@ export default function PackageConfig({
                         <span className="text-xs text-gray-500">(.mv files)</span>
                     </div>
                     <span className="text-xs font-bold text-[var(--primary)]">
-                        {modulesBase64.length > 0
-                            ? `${modulesBase64.length} module(s)`
-                            : ''}
+                        {modulesBase64.length > 0 ? `${modulesBase64.length} module(s)` : ''}
                     </span>
                 </div>
                 {fileStatusMsg && <p className="text-xs mt-2 font-medium">{fileStatusMsg}</p>}
@@ -146,4 +141,3 @@ export default function PackageConfig({
         </div>
     )
 }
-

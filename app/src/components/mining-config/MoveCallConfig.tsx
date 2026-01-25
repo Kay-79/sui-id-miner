@@ -1,4 +1,3 @@
-
 import NeoSelect from '../NeoSelect'
 import SenderInput from './shared/SenderInput'
 import GasSettings from './shared/GasSettings'
@@ -62,11 +61,7 @@ export default function MoveCallConfig({
                     />
                 </div>
 
-                <SenderInput
-                    value={sender}
-                    onChange={setSender}
-                    disabled={isRunning}
-                />
+                <SenderInput value={sender} onChange={setSender} disabled={isRunning} />
 
                 {/* Type Args */}
                 <div>
@@ -76,7 +71,14 @@ export default function MoveCallConfig({
                     <input
                         type="text"
                         value={mcTypeArgs.join(', ')}
-                        onChange={(e) => setMcTypeArgs(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                        onChange={(e) =>
+                            setMcTypeArgs(
+                                e.target.value
+                                    .split(',')
+                                    .map((s) => s.trim())
+                                    .filter(Boolean)
+                            )
+                        }
                         className="brutal-input font-mono text-sm w-full"
                         placeholder="0x2::sui::SUI, 0x..."
                         disabled={isRunning}
@@ -90,7 +92,10 @@ export default function MoveCallConfig({
                     </label>
                     <div className="space-y-3">
                         {mcArgs.map((arg, idx) => (
-                            <div key={idx} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-white p-2 border border-purple-200 shadow-sm">
+                            <div
+                                key={idx}
+                                className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-white p-2 border border-purple-200 shadow-sm"
+                            >
                                 <div className="flex items-center gap-2 w-full sm:w-auto">
                                     <NeoSelect
                                         value={arg.type}
@@ -120,7 +125,9 @@ export default function MoveCallConfig({
                                         setMcArgs(newArgs)
                                     }}
                                     className="brutal-input font-mono text-sm flex-1 w-full min-w-[120px]"
-                                    placeholder={arg.type === 'bool' ? 'true/false' : `Value for ${arg.type}`}
+                                    placeholder={
+                                        arg.type === 'bool' ? 'true/false' : `Value for ${arg.type}`
+                                    }
                                     disabled={isRunning}
                                 />
                                 <button
@@ -149,12 +156,12 @@ export default function MoveCallConfig({
 
             {/* Target Index & Threads */}
             <div className="border-t border-purple-200 pt-4 mt-4 space-y-4">
-                 <GasSettings
+                <GasSettings
                     gasBudget={baseGasBudget}
                     setGasBudget={setBaseGasBudget}
                     disabled={isRunning}
-                 >
-                     <div className="flex-1">
+                >
+                    <div className="flex-1">
                         <label className="block text-xs font-bold uppercase mb-1">
                             Target Index
                         </label>
@@ -170,7 +177,7 @@ export default function MoveCallConfig({
                             disabled={isRunning}
                         />
                     </div>
-                 </GasSettings>
+                </GasSettings>
             </div>
 
             <GasObjectInput
@@ -185,4 +192,3 @@ export default function MoveCallConfig({
         </div>
     )
 }
-

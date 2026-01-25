@@ -15,9 +15,7 @@ export default function GasSettings({
         <div className="flex gap-4">
             {children}
             <div className="flex-1">
-                <label className="block text-xs font-bold uppercase mb-1">
-                    Gas Budget
-                </label>
+                <label className="block text-xs font-bold uppercase mb-1">Gas Budget</label>
                 <input
                     type="number"
                     value={gasBudget || ''}

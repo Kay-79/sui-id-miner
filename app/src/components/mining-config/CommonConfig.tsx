@@ -52,7 +52,6 @@ export default function CommonConfig({
                     ~{formatNumber(estimatedAttempts)} attempts
                 </span>
             </div>
-
         </div>
     )
 }

@@ -32,9 +32,7 @@ function App() {
 
     // Package Mode: Module storage + Gas Object
     const [modulesBase64, setModulesBase64] = useState<string[]>([])
-    const [sender, setSender] = useState(
-        ''
-    )
+    const [sender, setSender] = useState('')
     const [gasObjectId, setGasObjectId] = useState('')
     const [lastGasVersion, setLastGasVersion] = useState<string | null>(null)
     const [network, setNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('testnet')
@@ -180,9 +178,6 @@ function App() {
                 return
             }
 
-            // Auto-fetch gas object version/digest right before mining
-            showToast('Fetching gas object details...', 'info')
-
             try {
                 const client = new SuiClient({ url: getFullnodeUrl(network) })
                 const data = await client.getObject({ id: gasObjectId })
@@ -229,14 +224,35 @@ function App() {
                 return
             }
 
-            showToast('Fetching gas object details...', 'info')
-
             try {
                 const client = new SuiClient({ url: getFullnodeUrl(network) })
-                const data = await client.getObject({ id: gasObjectId })
+                const data = await client.getObject({
+                    id: gasObjectId,
+                    options: { showContent: true },
+                })
 
                 if (!data.data) {
                     showToast('Gas object not found!', 'error')
+                    return
+                }
+
+                // Check Balance
+                let balance = 0
+                if (data.data.content?.dataType === 'moveObject') {
+                    const fields = data.data.content.fields as any
+                    if ('balance' in fields) {
+                        balance = Number(fields.balance)
+                    }
+                }
+
+                const neededAmount = splitAmounts.reduce((a, b) => a + b, 0)
+                // Add some buffer for gas fees (e.g. 0.1 SUI or just the split amount)
+                // For now strict check against split amount. User should know about gas fees.
+                if (neededAmount > balance) {
+                    showToast(
+                        `Insufficient balance! Need ${(neededAmount / 1e9).toFixed(2)} SUI but have ${(balance / 1e9).toFixed(2)}`,
+                        'error'
+                    )
                     return
                 }
 
@@ -244,7 +260,10 @@ function App() {
                 const gasDigest = data.data.digest
 
                 setLastGasVersion(gasVersion)
-                showToast(`Gas object verified: v${gasVersion}`, 'success')
+                showToast(
+                    `Gas object verified: v${gasVersion} (${(balance / 1e9).toFixed(2)} SUI)`,
+                    'success'
+                )
 
                 wsMiner.startGasCoinMining({
                     prefix,

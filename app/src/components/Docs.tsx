@@ -15,21 +15,31 @@ export default function Docs() {
                     Command Line Usage
                 </h3>
                 <p>
-                    The CLI is the most powerful way to use the miner, supporting automation and headless operation.
+                    The CLI is the most powerful way to use the miner, supporting automation and
+                    headless operation.
                 </p>
 
                 <div className="bg-gray-100 p-4 border-2 border-black rounded-lg space-y-4 font-mono text-sm overflow-x-auto">
                     <div>
                         <p className="text-gray-500 mb-1"># 1. Vanity Package ID (Publish)</p>
-                        <p>cargo run --release -- package --prefix cafe --module ./build/MyPackage/bytecode_modules --sender 0x...</p>
+                        <p>
+                            cargo run --release -- package --prefix cafe --module
+                            ./build/MyPackage/bytecode_modules --sender 0x...
+                        </p>
                     </div>
                     <div>
                         <p className="text-gray-500 mb-1"># 2. Vanity Gas Coin ID (Split)</p>
-                        <p>cargo run --release -- gas --prefix face --split-amounts 1000000 --sender 0x...</p>
+                        <p>
+                            cargo run --release -- gas --prefix face --split-amounts 1000000
+                            --sender 0x...
+                        </p>
                     </div>
                     <div>
                         <p className="text-gray-500 mb-1"># 3. Vanity Object ID (Move Call)</p>
-                        <p>cargo run --release -- move --prefix f00d --tx-base64 AAAB... --object-index 0</p>
+                        <p>
+                            cargo run --release -- move --prefix f00d --tx-base64 AAAB...
+                            --object-index 0
+                        </p>
                     </div>
                 </div>
 
@@ -68,22 +78,38 @@ export default function Docs() {
             {/* Web UI Guide */}
             <section className="space-y-4">
                 <h3 className="heading-md flex items-center gap-2">
-                    <span className="bg-[var(--primary)] text-black px-2 py-0.5 text-sm rounded-sm border-2 border-black">WEB</span>
+                    <span className="bg-[var(--primary)] text-black px-2 py-0.5 text-sm rounded-sm border-2 border-black">
+                        WEB
+                    </span>
                     Web Interface Usage
                 </h3>
 
                 <ol className="list-decimal list-inside space-y-2 marker:font-bold">
                     <li>
-                        <strong>Start the Server:</strong> You must run the local server first to handle the heavy generation work ("mining").
+                        <strong>Start the Server:</strong> You must run the local server first to
+                        handle the heavy generation work ("mining").
                         <div className="bg-gray-900 text-white p-2 mt-1 rounded font-mono text-sm">
                             cd cli && cargo run --release --features gpu -- --server
                         </div>
                     </li>
-                    <li><strong>Connect:</strong> Click the "Connect local server" button.</li>
-                    <li><strong>Select Mode:</strong> Choose between Package, Gas Coin, or Move Call.</li>
-                    <li><strong>Configure:</strong> Fill in the required fields (Sender, Gas Object, etc.).</li>
-                    <li><strong>Enable GPU (Optional):</strong> Check "Use GPU" for faster mining (requires CUDA).</li>
-                    <li><strong>Start:</strong> Click "Start Generation" and watch the progress!</li>
+                    <li>
+                        <strong>Connect:</strong> Click the "Connect local server" button.
+                    </li>
+                    <li>
+                        <strong>Select Mode:</strong> Choose between Package, Gas Coin, or Move
+                        Call.
+                    </li>
+                    <li>
+                        <strong>Configure:</strong> Fill in the required fields (Sender, Gas Object,
+                        etc.).
+                    </li>
+                    <li>
+                        <strong>Enable GPU (Optional):</strong> Check "Use GPU" for faster mining
+                        (requires CUDA).
+                    </li>
+                    <li>
+                        <strong>Start:</strong> Click "Start Generation" and watch the progress!
+                    </li>
                 </ol>
             </section>
 
@@ -99,7 +125,10 @@ export default function Docs() {
                     </li>
                     <li className="flex gap-2">
                         <span className="font-bold">Gas Object:</span>
-                        <span>Ensure sufficient balance. Avoid spending from this object during generation.</span>
+                        <span>
+                            Ensure sufficient balance. Avoid spending from this object during
+                            generation.
+                        </span>
                     </li>
                 </ul>
             </section>
