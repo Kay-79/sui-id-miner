@@ -14,18 +14,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install OpenCL Headers
+      - name: Install OpenCL Headers & Drivers
         run: |
           sudo apt-get update
-          sudo apt-get install -y ocl-icd-opencl-dev
+          sudo apt-get install -y ocl-icd-opencl-dev pocl-opencl-icd
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Run Tests
+        
+      - name: Run CPU Tests
+        working-directory: ./cli
+        run: cargo test --verbose
+        
+      - name: Run GPU Tests
         working-directory: ./cli
         run: cargo test --verbose --features gpu
 
-      - name: Build
+
+      - name: Build with GPU
         working-directory: ./cli
         run: cargo build --verbose --release --features gpu
