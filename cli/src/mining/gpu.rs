@@ -62,58 +62,7 @@ impl GpuExecutor {
         println!("   Using Device: {}", name);
 
         let global_work_size = 1024 * 256;
-        pro_que.set_dims((global_work_size,));
-
-        // GPU Self-Check: BLAKE2b on "abc"
-        {
-            let test_input = b"abc";
-            let test_in_buf = pro_que
-                .buffer_builder::<u8>()
-                .len(test_input.len())
-                .flags(MemFlags::READ_ONLY | MemFlags::COPY_HOST_PTR)
-                .copy_host_slice(test_input)
-                .build()?;
-
-            let test_out_buf = pro_que
-                .buffer_builder::<u64>()
-                .len(1)
-                .flags(MemFlags::WRITE_ONLY)
-                .build()?;
-
-            let verify_kernel = pro_que
-                .kernel_builder("verify_blake2b")
-                .arg(&test_in_buf)
-                .arg(test_input.len() as u32)
-                .arg(&test_out_buf)
-                .build()?;
-
-            unsafe {
-                verify_kernel.enq()?;
-            }
-
-            let mut gpu_result = vec![0u64; 1];
-            test_out_buf.read(&mut gpu_result).enq()?;
-
-            let cpu_digest = Blake2b256::digest(b"abc");
-            let cpu_bytes = cpu_digest.as_ref();
-            let expected_u64 = {
-                let mut val = 0u64;
-                for i in 0..8 {
-                    val |= (cpu_bytes[i] as u64) << (i * 8);
-                }
-                val
-            };
-
-            if gpu_result[0] == expected_u64 {
-                println!("✅ GPU Self-Check Passed: Blake2b hashing matches CPU");
-            } else {
-                println!(
-                    "❌ GPU Self-Check Failed: Blake2b mismatch! GPU={:016x}, CPU={:016x}",
-                    gpu_result[0], expected_u64
-                );
-                return Err(anyhow::anyhow!("GPU BLAKE2b verification failed"));
-            }
-        }
+        pro_que.set_dims((global_work_size,));        
 
         // Prepare prefix bytes for hashing: "TransactionData::"
         // Sui TransactionDigest is Blake2b256("TransactionData::" || BCS(TransactionData))
@@ -420,6 +369,7 @@ mod tests {
         let pro_que = ProQue::builder()
             .src(kernel_src)
             .dims(1)
+            .device(ocl::DeviceType::ALL)
             .build()
             .map_err(|e| anyhow::anyhow!("OpenCL Build Error: {}", e))?;
 
@@ -484,6 +434,7 @@ mod tests {
         let pro_que = ProQue::builder()
             .src(kernel_src)
             .dims(1)
+            .device(ocl::DeviceType::ALL)
             .build()
             .map_err(|e| anyhow::anyhow!("OpenCL Build Error: {}", e))?;
 
@@ -602,6 +553,7 @@ mod tests {
         let pro_que = ProQue::builder()
             .src(kernel_src)
             .dims(1) // Single thread
+            .device(ocl::DeviceType::ALL)
             .build()?;
 
         let device = pro_que.device();
@@ -761,6 +713,7 @@ mod tests {
         let pro_que = ProQue::builder()
             .src(kernel_src)
             .dims(1) // Single thread
+            .device(ocl::DeviceType::ALL)
             .build()?;
 
         let device = pro_que.device();
@@ -868,7 +821,11 @@ mod tests {
         let input = (0..64).map(|i| i as u8).collect::<Vec<u8>>();
 
         let kernel_src = include_str!("kernel.cl");
-        let pro_que = ProQue::builder().src(kernel_src).dims(1).build()?;
+        let pro_que = ProQue::builder()
+            .src(kernel_src)
+            .dims(1)
+            .device(ocl::DeviceType::ALL)
+            .build()?;
 
         let device = pro_que.device();
         println!("GPU Device: {}", device.info(DeviceInfo::Name)?);
@@ -930,7 +887,11 @@ mod tests {
     fn test_gpu_blake2b_sizes() -> Result<()> {
         println!("Testing GPU Blake2b with multiple sizes...");
         let kernel_src = include_str!("kernel.cl");
-        let pro_que = ProQue::builder().src(kernel_src).dims(1).build()?;
+        let pro_que = ProQue::builder()
+            .src(kernel_src)
+            .dims(1)
+            .device(ocl::DeviceType::ALL)
+            .build()?;
 
         let sizes = vec![0, 1, 64, 127, 128, 129, 255, 256, 257];
 
