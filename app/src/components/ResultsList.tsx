@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FoundResult } from '../types'
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
+import { withSuiFallback } from '../lib/rpc'
 
 // --- Interfaces ---
 interface ResultsListProps {
@@ -89,8 +89,9 @@ function GasAvailabilityCheck({
 
         setStatus('checking')
         try {
-            const client = new SuiClient({ url: getFullnodeUrl(network as any) })
-            const data = await client.getObject({ id: gasObjectId })
+            const data = await withSuiFallback(network as any, (client) =>
+                client.getObject({ id: gasObjectId })
+            )
 
             if (data.data) {
                 if (savedVersion && data.data.version !== savedVersion) {

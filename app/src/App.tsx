@@ -14,7 +14,8 @@ import { useWebSocketMiner } from './hooks/useWebSocketMiner'
 import { useSmoothStats } from './hooks/useSmoothStats'
 import { useToast } from './hooks/useToast'
 import { ToastContainer } from './components/Toast'
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
+import { SuiClient } from '@mysten/sui/client'
+import { getRpcUrl, withSuiFallback } from './lib/rpc'
 import { Transaction } from '@mysten/sui/transactions'
 import { toBase64 } from '@mysten/sui/utils'
 
@@ -179,8 +180,9 @@ function App() {
             }
 
             try {
-                const client = new SuiClient({ url: getFullnodeUrl(network) })
-                const data = await client.getObject({ id: gasObjectId })
+                const data = await withSuiFallback(network, (client) =>
+                    client.getObject({ id: gasObjectId })
+                )
 
                 if (!data.data) {
                     showToast('Gas object not found!', 'error')
@@ -225,11 +227,12 @@ function App() {
             }
 
             try {
-                const client = new SuiClient({ url: getFullnodeUrl(network) })
-                const data = await client.getObject({
-                    id: gasObjectId,
-                    options: { showContent: true },
-                })
+                const data = await withSuiFallback(network, (client) =>
+                    client.getObject({
+                        id: gasObjectId,
+                        options: { showContent: true },
+                    })
+                )
 
                 if (!data.data) {
                     showToast('Gas object not found!', 'error')
@@ -304,9 +307,11 @@ function App() {
                     tx.setSender(sender)
                     tx.setGasBudget(baseGasBudget)
 
-                    // Fetch Gas Object Details
-                    const client = new SuiClient({ url: getFullnodeUrl(network) })
-                    const coinObj = await client.getObject({ id: gasObjectId })
+                    // Fetch Gas Object Details — fallback across multiple RPC nodes
+                    const client = new SuiClient({ url: getRpcUrl(network) })
+                    const coinObj = await withSuiFallback(network, (c) =>
+                        c.getObject({ id: gasObjectId })
+                    )
 
                     if (coinObj.data) {
                         tx.setGasPayment([

@@ -1,62 +1,7 @@
 import { useState, useEffect } from 'react'
-import { SuiClient } from '@mysten/sui/client'
+import { withSuiFallback } from '../lib/rpc'
 
 type Network = 'mainnet' | 'testnet' | 'devnet'
-
-/**
- * RPC endpoint lists per network.
- * In dev: all calls go through Vite's proxy (same-origin) → no CORS.
- * In prod: call the fullnode URLs directly (browser CORS is fine on deployed hosts,
- *          or add Vercel rewrites if needed).
- */
-const RPC_ENDPOINTS: Record<Network, string[]> = {
-    mainnet: import.meta.env.DEV
-        ? ['/sui-rpc/mainnet-1/', '/sui-rpc/mainnet-2/']
-        : ['https://fullnode.mainnet.sui.io/', 'https://sui-mainnet-rpc.publicnode.com/'],
-
-    testnet: import.meta.env.DEV
-        ? ['/sui-rpc/testnet-1/', '/sui-rpc/testnet-2/', '/sui-rpc/testnet-3/']
-        : [
-              'https://fullnode.testnet.sui.io/',
-              'https://sui-testnet-rpc.publicnode.com/',
-              'https://rpc-testnet.suiscan.xyz/',
-          ],
-
-    devnet: import.meta.env.DEV
-        ? ['/sui-rpc/devnet-1/']
-        : ['https://fullnode.devnet.sui.io/'],
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-/**
- * Try each RPC endpoint in order. On a transient error (503 / 429 / network failure)
- * waits briefly then moves to the next URL. Throws only when all endpoints fail.
- */
-async function getAllCoinsWithFallback(network: Network, owner: string) {
-    const urls = RPC_ENDPOINTS[network]
-    let lastError: unknown
-
-    for (let i = 0; i < urls.length; i++) {
-        try {
-            const client = new SuiClient({ url: urls[i] })
-            return await client.getAllCoins({ owner })
-        } catch (e: any) {
-            lastError = e
-            const status: number | undefined = e?.status ?? e?.response?.status
-            const isTransient = status === 503 || status === 429 || status == null
-            if (isTransient && i < urls.length - 1) {
-                // Brief backoff before trying next endpoint
-                await sleep(500 * (i + 1))
-                continue
-            }
-            // Non-transient error (e.g. 400) — no point retrying
-            throw e
-        }
-    }
-
-    throw lastError
-}
 
 interface UseBestGasCoinProps {
     sender: string
@@ -75,7 +20,9 @@ export function useBestGasCoin({ sender, network, setGasObjectId }: UseBestGasCo
         setIsFetching(true)
         setStatusMsg(`⏳ Finding best gas coin on ${network.toUpperCase()}...`)
         try {
-            const coins = await getAllCoinsWithFallback(network, sender)
+            const coins = await withSuiFallback(network, (client) =>
+                client.getAllCoins({ owner: sender })
+            )
 
             if (coins.data.length === 0) {
                 setStatusMsg('❌ No coins found for this address on ' + network.toUpperCase())
@@ -100,7 +47,7 @@ export function useBestGasCoin({ sender, network, setGasObjectId }: UseBestGasCo
             if (status === 503) {
                 setStatusMsg('❌ All RPC nodes unavailable (503). Try again in a moment.')
             } else if (status === 429) {
-                setStatusMsg('❌ Rate limited by RPC node. Try again shortly.')
+                setStatusMsg('❌ Rate limited. Try again shortly.')
             } else {
                 setStatusMsg('❌ ' + (e?.message ?? 'Unknown error'))
             }

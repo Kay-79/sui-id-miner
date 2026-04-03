@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client'
+import { withSuiFallback } from '../lib/rpc'
 
 export function useGasBalance(objectId: string, network: 'mainnet' | 'testnet' | 'devnet') {
     const [balance, setBalance] = useState<number | null>(null)
@@ -19,11 +19,12 @@ export function useGasBalance(objectId: string, network: 'mainnet' | 'testnet' |
             setLoading(true)
             setError('')
             try {
-                const client = new SuiClient({ url: getFullnodeUrl(network) })
-                const obj = await client.getObject({
-                    id: objectId,
-                    options: { showContent: true },
-                })
+                const obj = await withSuiFallback(network, (client) =>
+                    client.getObject({
+                        id: objectId,
+                        options: { showContent: true },
+                    })
+                )
 
                 if (obj.data?.content?.dataType === 'moveObject') {
                     const fields = obj.data.content.fields as any
